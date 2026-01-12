@@ -1,270 +1,522 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import Container from "@/components/layout/Container";
-import Panel from "@/components/layout/Panel";
-import SplitView from "@/components/layout/SplitView";
-import Badge from "@/components/ui/Badge";
-import { PlayIcon, SearchIcon, HeartIcon } from "@/components/icons";
-import { clsx } from "clsx";
-import { publicMenu } from "@/lib/endpoints";
-import { restaurantSlug } from "@/lib/env";
-import { normalizePublicMenu, UiCategory, UiDish } from "@/lib/menuAdapter";
-import DishPreview from "@/components/customer/DishPreview";
 import Link from "next/link";
+import { clsx } from "clsx";
+import Container from "@/components/layout/Container";
+import { publicMenu } from "@/lib/endpoints";
+import { normalizePublicMenu, UiCategory, UiDish } from "@/lib/menuAdapter";
+import { SearchIcon, PlayIcon, HeartIcon } from "@/components/icons";
+import { getFavorites, toggleFavorite } from "@/lib/likes";
 
-export default function CustomerMenuApi() {
+function isDrinksCategory(name: string) {
+  const n = name.toLowerCase();
+  return n.includes("drink") || n.includes("beverage") || n.includes("lassi") || n.includes("soda");
+}
+
+function money(v: number | undefined) {
+  const p = Number.isFinite(v) ? (v as number) : 0;
+  return `$${p.toFixed(2)}`;
+}
+
+function shortText(s?: string) {
+  if (!s) return "";
+  return s.length > 90 ? `${s.slice(0, 90).trim()}…` : s;
+}
+
+export default function CustomerMenuApi({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [restaurantName, setRestaurantName] = useState<string>("DishLens");
-  const [categories, setCategories] = useState<UiCategory[]>([]);
 
-  const [tab, setTab] = useState<string>("");
+  const [restaurantName, setRestaurantName] = useState<string>("DishLens");
+  const [restaurantAddress, setRestaurantAddress] = useState<string>("");
+  const [restaurantLogoUrl, setRestaurantLogoUrl] = useState<string>("");
+  const [restaurantHeroUrl, setRestaurantHeroUrl] = useState<string>("");
+
+  const [categories, setCategories] = useState<UiCategory[]>([]);
+  const [activeTab, setActiveTab] = useState<string>("");
   const [q, setQ] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Customer QR menu: no delivery/pickup. Keep only search.
+
+  // Inline video playback (no popup)
+  const [playingDishId, setPlayingDishId] = useState<string | null>(null);
+  const [muted, setMuted] = useState(true);
+
+  // Local favorites (heart)
+  const [favs, setFavs] = useState<Set<string>>(new Set());
+
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       setErr(null);
       try {
-        const payload = await publicMenu(restaurantSlug());
+        const payload = await publicMenu(slug);
         const norm = normalizePublicMenu(payload);
         setRestaurantName(norm.restaurantName || "DishLens");
+        setRestaurantAddress(norm.address || "");
+        setRestaurantLogoUrl(norm.logoUrl || "");
+        setRestaurantHeroUrl(norm.heroImageUrl || "");
         setCategories(norm.categories);
-        const firstTab = norm.categories?.[0]?.name || "Menu";
-        setTab(firstTab);
-        const firstItem = norm.categories?.[0]?.items?.[0]?.id ?? null;
-        setSelectedId(firstItem);
+        setActiveTab(norm.categories?.[0]?.name || "Menu");
       } catch (e: any) {
         setErr(e?.message ?? "Failed to load menu");
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [slug]);
 
-  const active = useMemo(
-    () => categories.find((c) => c.name === tab) ?? categories[0],
-    [categories, tab]
-  );
+  useEffect(() => {
+    // load favorites on mount
+    setFavs(getFavorites(slug));
+  }, [slug]);
 
-  const filtered = useMemo(() => {
-    const items = active?.items ?? [];
-    return items.filter((d) =>
-      q ? d.name.toLowerCase().includes(q.toLowerCase()) : true
-    );
-  }, [active, q]);
+  const categoriesWithPicked = useMemo(() => {
+    const hasPicked = categories.some((c) => c.name.toLowerCase() === "picked for you");
+    if (hasPicked || categories.length === 0) return categories;
 
-  const selectedDish = useMemo(() => {
-    const all = categories.flatMap((c) => c.items);
-    return all.find((x) => x.id === selectedId) ?? filtered[0] ?? null;
-  }, [categories, selectedId, filtered]);
+    const picks: UiDish[] = [];
+    for (const c of categories) {
+      if (c.items?.[0]) picks.push(c.items[0]);
+      if (picks.length >= 6) break;
+    }
+
+    return [
+      { id: "picked", name: "Picked for you", items: picks },
+      ...categories
+    ];
+  }, [categories]);
+
+  const filteredByQuery = useMemo(() => {
+    if (!q) return categoriesWithPicked;
+    const query = q.toLowerCase();
+    return categoriesWithPicked
+      .map((c) => ({
+        ...c,
+        items: (c.items ?? []).filter((d) => d.name.toLowerCase().includes(query))
+      }))
+      .filter((c) => (c.items ?? []).length > 0);
+  }, [categoriesWithPicked, q]);
 
   const heroImage =
-    selectedDish?.imageUrl ||
-    "https://images.unsplash.com/photo-1604909052743-94e838986d9a?auto=format&fit=crop&w=1200&q=70";
+    restaurantHeroUrl ||
+    filteredByQuery?.[0]?.items?.[0]?.imageUrl ||
+    "https://images.unsplash.com/photo-1604909052743-94e838986d9a?auto=format&fit=crop&w=1400&q=70";
+
+  // Update active tab on scroll (Uber-style)
+  useEffect(() => {
+    if (!filteredByQuery.length) return;
+
+    const observers: IntersectionObserver[] = [];
+    for (const c of filteredByQuery) {
+      const el = sectionRefs.current[c.name];
+      if (!el) continue;
+
+      const obs = new IntersectionObserver(
+        (entries) => {
+          const e = entries[0];
+          if (e.isIntersecting) setActiveTab(c.name);
+        },
+        { root: null, threshold: 0.25, rootMargin: "-40% 0px -55% 0px" }
+      );
+
+      obs.observe(el);
+      observers.push(obs);
+    }
+
+    return () => observers.forEach((o) => o.disconnect());
+  }, [filteredByQuery]);
+
+  function scrollToCategory(name: string) {
+    const el = sectionRefs.current[name];
+    if (!el) return;
+
+      // ✅ Move underline immediately on click
+    setActiveTab(name);
+    
+    // Account for sticky tab bar so the heading isn't hidden.
+    const stickyOffset = 64;
+    const y = el.getBoundingClientRect().top + window.scrollY - stickyOffset;
+    window.scrollTo({ top: y, behavior: "smooth" });
+  }
+
+  const baseHref = `/m/${encodeURIComponent(slug)}`;
 
   return (
-    <Container>
-      <div className="mb-6">
-        <div className="text-3xl font-black tracking-tight">Menu</div>
-        <div className="mt-1 text-sm text-zinc-600">
-          {restaurantName} • Visual ordering with photos & videos
-        </div>
-      </div>
+    <div className="bg-white">
+      {/* Center column like Uber mobile */}
+      <Container className="max-w-3xl px-0 sm:px-4">
+        {/* Hero / Restaurant Header */}
+        <div className="relative overflow-hidden rounded-none sm:rounded-3xl sm:border">
+          <div className="relative h-[220px] w-full">
+            <Image
+              src={heroImage}
+              alt="Restaurant hero"
+              fill
+              className="object-cover"
+              priority
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/0 to-black/55" />
 
-      {loading && (
-        <Panel className="p-4 text-sm text-zinc-600">Loading menu...</Panel>
-      )}
+            {/* QR menu actions: keep UI clean (no delivery/search buttons like Uber) */}
 
-      {err && (
-        <Panel className="p-4 border-red-200 bg-red-50 text-sm text-red-800">
-          {err}
-          <div className="mt-2 text-xs text-red-700">
-            Tip: set{" "}
-            <code className="px-1 py-0.5 bg-white border rounded">
-              NEXT_PUBLIC_RESTAURANT_SLUG
-            </code>{" "}
-            in{" "}
-            <code className="px-1 py-0.5 bg-white border rounded">.env.local</code>.
-          </div>
-        </Panel>
-      )}
-
-      {!loading && !err && (
-        <SplitView
-          left={
-            <div className="grid gap-4">
-              <Panel className="overflow-hidden">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/10 to-black/55 z-[1]" />
-                  <Image
-                    src={heroImage}
-                    alt="hero"
-                    width={1200}
-                    height={700}
-                    className="h-[160px] w-full object-cover"
-                    priority
-                  />
-                  <div className="absolute left-5 top-4 z-[2]">
-                    <div className="text-2xl font-black tracking-tight text-white drop-shadow">
-                      {restaurantName}
-                    </div>
-                    <div className="mt-1 text-xs text-white/90">
-                      Tap an item to preview on desktop
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4">
-                  <div className="flex gap-2">
-                    {(categories.length ? categories : [{ id: "menu", name: "Menu", items: [] }]).map(
-                      (c) => (
-                        <button
-                          key={c.id || c.name}
-                          onClick={() => {
-                            setTab(c.name);
-                            setSelectedId(c.items?.[0]?.id ?? null);
-                          }}
-                          className={clsx(
-                            "flex-1 rounded-2xl border px-3 py-2 text-xs font-semibold transition",
-                            tab === c.name
-                              ? "bg-red-600 text-white border-red-600"
-                              : "bg-white text-zinc-700 border-zinc-200"
-                          )}
-                        >
-                          {c.name}
-                        </button>
-                      )
-                    )}
-                  </div>
-
-                  <div className="mt-3 flex items-center gap-2 rounded-2xl border bg-white px-3 py-2">
-                    <SearchIcon className="h-4 w-4 text-zinc-500" />
-                    <input
-                      value={q}
-                      onChange={(e) => setQ(e.target.value)}
-                      placeholder="Search dishes..."
-                      className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
+            {/* Logo badge (from API if available) */}
+            <div className="absolute left-4 bottom-[-30px]">
+              <div className="h-20 w-20 rounded-full bg-white shadow-soft grid place-items-center border">
+                {restaurantLogoUrl ? (
+                  <div className="relative h-14 w-14 overflow-hidden rounded-full">
+                    <Image
+                      src={restaurantLogoUrl}
+                      alt="Restaurant logo"
+                      fill
+                      className="object-cover"
+                      sizes="56px"
                     />
                   </div>
-                </div>
-              </Panel>
-
-              <div className="grid gap-3">
-                {filtered.map((d) => (
-                  <DishRow
-                    key={d.id}
-                    dish={d}
-                    selected={d.id === selectedId}
-                    onSelect={() => setSelectedId(d.id)}
-                  />
-                ))}
-
-                {filtered.length === 0 && (
-                  <Panel className="p-4 text-sm text-zinc-600">No dishes found.</Panel>
+                ) : (
+                  <div className="h-14 w-14 rounded-full bg-zinc-900 text-white grid place-items-center text-xs font-bold">
+                    DL
+                  </div>
                 )}
               </div>
             </div>
-          }
-          right={
-            <>
-              <div className="hidden lg:block">
-                <DishPreview dish={selectedDish} variant="desktop" />
-              </div>
+          </div>
 
-              <div className="lg:hidden">
-                <Panel className="p-4 text-sm text-zinc-700">
-                  On mobile, tap a dish to open its detail screen.
-                </Panel>
-                <div className="mt-4 grid gap-3">
-                  {filtered.slice(0, 8).map((d) => (
-                    <Link key={d.id} href={`/customer/dish/${d.id}`}>
-                      <Panel className="p-4 hover:border-zinc-300 transition">
-                        <div className="font-bold">{d.name}</div>
-                        <div className="mt-1 text-sm text-zinc-600">
-                          ${(d.price ?? 0).toFixed(2)}
-                        </div>
-                      </Panel>
-                    </Link>
-                  ))}
-                </div>
+          <div className="px-4 pt-10 pb-4">
+            <div className="text-2xl font-black tracking-tight text-zinc-900">
+              {restaurantName}
+            </div>
+
+            <div className="mt-1 text-sm text-zinc-600">
+              {restaurantAddress ? restaurantAddress : ""}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
+                Scan & view videos
+              </span>
+              <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
+                Tap a dish for details
+              </span>
+            </div>
+
+            {/* Search bar */}
+            <div className="mt-3 flex items-center gap-2 rounded-full border bg-white px-4 py-2.5">
+              <SearchIcon className="h-4 w-4 text-zinc-500" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search"
+                className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Loading / error */}
+        {loading && (
+          <div className="px-4 py-6 text-sm text-zinc-600">Loading menu…</div>
+        )}
+
+        {err && (
+          <div className="mx-4 mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            {err}
+            <div className="mt-2 text-xs text-red-700">
+              Tip: open this page via QR code like <code className="px-1 py-0.5 bg-white border rounded">/m/&lt;restaurant-slug&gt;</code>.
+            </div>
+          </div>
+        )}
+
+        {!loading && !err && (
+          <>
+            {/* Sticky category tabs */}
+            <div className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b">
+              <div className="px-4 py-2 flex gap-6 overflow-x-auto whitespace-nowrap no-scrollbar">
+                {filteredByQuery.map((c) => (
+                  <button
+                    key={c.id || c.name}
+                    onClick={() => scrollToCategory(c.name)}
+                    className={clsx(
+                      "pb-2 text-sm font-semibold transition",
+                      activeTab === c.name
+                        ? "text-zinc-900 border-b-2 border-zinc-900"
+                        : "text-zinc-500"
+                    )}
+                  >
+                    {c.name}
+                  </button>
+                ))}
               </div>
-            </>
-          }
-        />
-      )}
-    </Container>
+            </div>
+
+            {/* Sections */}
+            <div className="px-4 pt-3 pb-8">
+              {filteredByQuery.map((cat) => {
+                const items = cat.items ?? [];
+                const drinks = isDrinksCategory(cat.name);
+
+                return (
+                  <section
+                    key={cat.id || cat.name}
+                    ref={(el) => {
+                      sectionRefs.current[cat.name] = el;
+                    }}
+                    className="pt-6 scroll-mt-20"
+                  >
+                    <h2 className="text-xl font-black text-zinc-900">{cat.name}</h2>
+
+                    {drinks ? (
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        {items.map((d) => (
+                          <DrinkCard
+                            key={d.id}
+                            dish={d}
+                            baseHref={baseHref}
+                            isFav={favs.has(d.id)}
+                            onToggleFav={() => setFavs(toggleFavorite(slug, d.id))}
+                            isPlaying={playingDishId === d.id}
+                            muted={muted}
+                            onToggleMuted={() => setMuted((v) => !v)}
+                            onPlay={() => setPlayingDishId((cur) => (cur === d.id ? null : d.id))}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-3 divide-y">
+                        {items.map((d) => (
+                          <MenuRow
+                            key={d.id}
+                            dish={d}
+                            baseHref={baseHref}
+                            isFav={favs.has(d.id)}
+                            onToggleFav={() => setFavs(toggleFavorite(slug, d.id))}
+                            isPlaying={playingDishId === d.id}
+                            muted={muted}
+                            onToggleMuted={() => setMuted((v) => !v)}
+                            onPlay={() => setPlayingDishId((cur) => (cur === d.id ? null : d.id))}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </Container>
+    </div>
   );
 }
 
-function DishRow({
+function MenuRow({
   dish,
-  selected,
-  onSelect
+  baseHref,
+  onPlay,
+  isPlaying,
+  muted,
+  onToggleMuted,
+  isFav,
+  onToggleFav
 }: {
   dish: UiDish;
-  selected: boolean;
-  onSelect: () => void;
+  baseHref: string;
+  onPlay: () => void;
+  isPlaying: boolean;
+  muted: boolean;
+  onToggleMuted: () => void;
+  isFav: boolean;
+  onToggleFav: () => void;
 }) {
   const img =
     dish.imageUrl ||
     "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=1200&q=70";
-  const price = Number.isFinite(dish.price) ? dish.price : 0;
 
   return (
-    <Panel
-      className={clsx(
-        "overflow-hidden cursor-pointer transition hover:border-zinc-300",
-        selected && "ring-2 ring-zinc-900/10 border-zinc-300"
-      )}
-    >
-      <button onClick={onSelect} className="w-full text-left">
-        <div className="relative">
+    <div className="py-4 flex items-start gap-4">
+      <Link href={`${baseHref}/dish/${dish.id}`} className="min-w-0 flex-1" aria-label={`Open ${dish.name}`}>
+        <div className="font-semibold text-[15px] text-zinc-900">{dish.name}</div>
+        <div className="mt-0.5 text-sm text-zinc-600 max-h-[2.5rem] overflow-hidden">
+          {shortText(dish.description) || " "}
+        </div>
+        <div className="mt-1 text-sm font-semibold text-zinc-900">{money(dish.price)}</div>
+      </Link>
+
+      <div className="relative shrink-0">
+        {isPlaying && dish.videoUrl ? (
+          <div className="relative h-24 w-24 rounded-2xl overflow-hidden bg-black">
+            <video
+              src={dish.videoUrl}
+              className="h-24 w-24 object-cover"
+              autoPlay
+              playsInline
+              loop
+              muted={muted}
+            />
+            <button
+              type="button"
+              onClick={onToggleMuted}
+              className="absolute top-1 left-1 rounded-full bg-black/55 text-white px-2 py-1 text-[10px] font-semibold"
+              aria-label={muted ? "Unmute" : "Mute"}
+            >
+              {muted ? "🔇" : "🔊"}
+            </button>
+          </div>
+        ) : (
           <Image
             src={img}
             alt={dish.name}
-            width={1200}
-            height={800}
-            className="h-[140px] w-full object-cover"
+            width={96}
+            height={96}
+            className="h-24 w-24 rounded-2xl object-cover"
           />
+        )}
 
-          <div className="absolute left-4 top-4 grid h-11 w-11 place-items-center rounded-2xl bg-black/60 text-white backdrop-blur">
-            <PlayIcon className="h-6 w-6" />
-          </div>
-          <div className="absolute right-4 bottom-4 rounded-2xl bg-black/60 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur">
-            ${price.toFixed(2)}
-          </div>
+        {/* Heart (favorite) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleFav();
+          }}
+          className={clsx(
+            "absolute top-2 right-2 h-8 w-8 rounded-full grid place-items-center shadow-soft border",
+            isFav ? "bg-white text-rose-600" : "bg-white/95 text-zinc-700"
+          )}
+          aria-label={isFav ? "Unlove dish" : "Love dish"}
+        >
+          <HeartIcon className="h-4 w-4" />
+        </button>
+
+        {/* Play (bottom-right, doesn't hide food) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (dish.videoUrl) onPlay();
+            else window.location.href = `${baseHref}/dish/${dish.id}`;
+          }}
+          className="absolute bottom-2 left-2 rounded-full bg-black/60 text-white px-3 py-1.5 text-xs font-semibold flex items-center gap-2"
+          aria-label={dish.videoUrl ? `Play video for ${dish.name}` : `Open ${dish.name}`}
+        >
+          <PlayIcon className="h-4 w-4" />
+          {dish.videoUrl ? "Video" : "Details"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DrinkCard({
+  dish,
+  baseHref,
+  onPlay,
+  isPlaying,
+  muted,
+  onToggleMuted,
+  isFav,
+  onToggleFav
+}: {
+  dish: UiDish;
+  baseHref: string;
+  onPlay: () => void;
+  isPlaying: boolean;
+  muted: boolean;
+  onToggleMuted: () => void;
+  isFav: boolean;
+  onToggleFav: () => void;
+}) {
+  const img =
+    dish.imageUrl ||
+    "https://images.unsplash.com/photo-1542444459-db37a1d7c14e?auto=format&fit=crop&w=1000&q=70";
+
+  return (
+    <div className="rounded-2xl border bg-white overflow-hidden">
+      <div className="relative h-24 w-full">
+        {isPlaying && dish.videoUrl ? (
+          <video
+            src={dish.videoUrl}
+            className="absolute inset-0 w-full h-full object-cover"
+            autoPlay
+            playsInline
+            loop
+            muted={muted}
+          />
+        ) : (
+          <Image src={img} alt={dish.name} fill className="object-cover" />
+        )}
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleFav();
+          }}
+          className={clsx(
+            "absolute top-2 right-2 h-8 w-8 rounded-full grid place-items-center shadow-soft border",
+            isFav ? "bg-white text-rose-600" : "bg-white/95 text-zinc-700"
+          )}
+          aria-label={isFav ? "Unlove dish" : "Love dish"}
+        >
+          <HeartIcon className="h-4 w-4" />
+        </button>
+
+        {dish.videoUrl ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onPlay();
+            }}
+            className="absolute bottom-2 left-2 rounded-full bg-black/60 text-white px-3 py-1.5 text-xs font-semibold flex items-center gap-2"
+            aria-label={`Play video for ${dish.name}`}
+          >
+            <PlayIcon className="h-4 w-4" />
+            Video
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => (window.location.href = `${baseHref}/dish/${dish.id}`)}
+            className="absolute bottom-2 left-2 rounded-full bg-black/60 text-white px-3 py-1.5 text-xs font-semibold"
+            aria-label={`Open ${dish.name}`}
+          >
+            Details
+          </button>
+        )}
+
+        {isPlaying && dish.videoUrl ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleMuted();
+            }}
+            className="absolute top-2 left-2 rounded-full bg-black/55 text-white px-2 py-1 text-[10px] font-semibold"
+            aria-label={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="p-3">
+        <Link href={`${baseHref}/dish/${dish.id}`} className="text-sm font-semibold text-zinc-900 truncate block">
+          {dish.name}
+        </Link>
+        <div className="mt-0.5 text-sm font-semibold text-zinc-900">{money(dish.price)}</div>
+        <div className="mt-1 text-xs text-zinc-600 truncate">
+          {shortText(dish.description) || " "}
         </div>
-
-        <div className="px-4 py-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-bold">{dish.name}</div>
-            <div className="mt-1 flex items-center gap-2">
-              <Badge
-                tone={
-                  dish.spice === "HOT"
-                    ? "danger"
-                    : dish.spice === "MEDIUM"
-                    ? "warning"
-                    : "neutral"
-                }
-              >
-                {dish.spice ?? "NONE"}
-              </Badge>
-              {dish.isVeg ? <Badge tone="success">VEG</Badge> : <Badge>NON-VEG</Badge>}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 text-zinc-600">
-            <div className="rounded-xl border border-zinc-200 bg-white px-2 py-2">
-              <HeartIcon className="h-4 w-4" />
-            </div>
-          </div>
-        </div>
-      </button>
-    </Panel>
+      </div>
+    </div>
   );
 }

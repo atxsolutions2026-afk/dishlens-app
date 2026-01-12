@@ -2,4 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-body { @apply bg-[#f5f2ee] text-zinc-900; }
+body { @apply bg-white text-zinc-900; }
+
+/* Hide scrollbars for horizontal tab bars (mobile) */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

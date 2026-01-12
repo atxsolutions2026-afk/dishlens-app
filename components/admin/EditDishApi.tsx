@@ -23,7 +23,7 @@ export default function EditDishApi() {
 
   async function doUpload() {
     if (!getToken()) {
-      window.location.href = "/login";
+      window.location.href = "/r/login";
       return;
     }
 
@@ -60,7 +60,7 @@ export default function EditDishApi() {
       <div className="mb-6 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Link
-            href="/admin"
+            href="/r/dashboard"
             className="rounded-2xl border border-zinc-200 bg-white p-2"
             aria-label="Back"
           >

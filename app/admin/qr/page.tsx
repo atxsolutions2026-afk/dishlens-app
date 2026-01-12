@@ -1,10 +1,5 @@
-import AppShell from "@/components/AppShell";
-import QrGenerating from "@/components/admin/QrGenerating";
+import { redirect } from "next/navigation";
 
-export default function QrPage() {
-  return (
-    <AppShell activeHref="/admin/qr">
-      <QrGenerating />
-    </AppShell>
-  );
+export default function LegacyQrRedirect() {
+  redirect("/r/qr");
 }

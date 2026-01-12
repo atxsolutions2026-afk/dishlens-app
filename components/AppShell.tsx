@@ -5,11 +5,15 @@ import { clsx } from "clsx";
 import { useEffect, useState } from "react";
 import { clearToken, getUser } from "@/lib/auth";
 
+// NOTE:
+// This shell is now **Restaurant Module only** (dashboard / uploads / QR).
+// Customer QR menu is a separate module under /m/* and does NOT use AppShell.
+
 const tabs = [
-  { href: "/customer", label: "Customer" },
-  { href: "/admin", label: "Admin Dashboard" },
-  { href: "/admin/dish/demo/edit", label: "Upload Media" },
-  { href: "/admin/qr", label: "QR" }
+  { href: "/r/dashboard", label: "Dashboard" },
+  { href: "/r/uploads", label: "Uploads" },
+  { href: "/r/branding", label: "Branding" },
+  { href: "/r/qr", label: "QR Codes" }
 ];
 
 export default function AppShell({
@@ -28,11 +32,11 @@ export default function AppShell({
 
   function logout() {
     clearToken();
-    window.location.href = "/login";
+    window.location.href = "/r/login";
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-white">
       <header className="border-b bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/55 sticky top-0 z-50">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
@@ -77,7 +81,7 @@ export default function AppShell({
               </>
             ) : (
               <Link
-                href="/login"
+                href="/r/login"
                 className="rounded-xl bg-zinc-900 px-3 py-1.5 font-semibold text-white"
               >
                 Login

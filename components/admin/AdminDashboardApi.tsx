@@ -47,7 +47,7 @@ export default function AdminDashboardApi() {
   useEffect(() => {
     (async () => {
       if (!getToken()) {
-        window.location.href = "/login";
+        window.location.href = "/r/login";
         return;
       }
 
@@ -92,10 +92,10 @@ export default function AdminDashboardApi() {
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={() => (window.location.href = "/admin/dish/demo/edit")}>
+          <Button onClick={() => (window.location.href = "/r/uploads")}>
             Upload Media
           </Button>
-          <Button variant="secondary" onClick={() => (window.location.href = "/admin/qr")}>
+          <Button variant="secondary" onClick={() => (window.location.href = "/r/qr")}>
             Generate QR
           </Button>
         </div>
@@ -144,13 +144,17 @@ export default function AdminDashboardApi() {
             <Panel className="p-5">
               <div className="text-sm font-bold">Quick Actions</div>
               <div className="mt-3 grid gap-2">
-                <Button className="w-full" onClick={() => (window.location.href = "/admin/dish/demo/edit")}>
+                <Button className="w-full" onClick={() => (window.location.href = "/r/uploads")}>
                   Upload dish image/video
                 </Button>
-                <Button variant="secondary" className="w-full" onClick={() => (window.location.href = "/admin/qr")}>
+                <Button variant="secondary" className="w-full" onClick={() => (window.location.href = "/r/qr")}>
                   Generate QR code
                 </Button>
-                <Button variant="secondary" className="w-full" onClick={() => (window.location.href = "/customer")}>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => (window.location.href = "/m/" + encodeURIComponent("house-of-chettinad"))}
+                >
                   Preview customer menu
                 </Button>
               </div>

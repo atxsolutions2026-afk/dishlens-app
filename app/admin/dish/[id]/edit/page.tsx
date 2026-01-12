@@ -1,10 +1,5 @@
-import AppShell from "@/components/AppShell";
-import EditDishApi from "@/components/admin/EditDishApi";
+import { redirect } from "next/navigation";
 
-export default function EditDishPage() {
-  return (
-    <AppShell activeHref="/admin/dish/demo/edit">
-      <EditDishApi />
-    </AppShell>
-  );
+export default function LegacyUploadRedirect() {
+  redirect("/r/uploads");
 }

@@ -4,8 +4,11 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "DishLens",
   description: "DishLens responsive web UI (PWA)",
-  manifest: "/manifest.json",
-  themeColor: "#111827"
+  manifest: "/manifest.json" 
+};
+
+export const viewport = {
+  themeColor: "#000000",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

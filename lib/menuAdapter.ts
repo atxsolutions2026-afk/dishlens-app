@@ -18,9 +18,32 @@ export type UiCategory = {
   items: UiDish[];
 };
 
-export function normalizePublicMenu(payload: any): { restaurantName?: string; categories: UiCategory[] } {
+export function normalizePublicMenu(payload: any): {
+  restaurantName?: string;
+  logoUrl?: string;
+  heroImageUrl?: string;
+  address?: string;
+  categories: UiCategory[];
+} {
+  const restaurant = payload?.restaurant ?? payload?.data?.restaurant ?? payload?.menu?.restaurant;
+
   const restaurantName =
-    payload?.restaurant?.name || payload?.restaurantName || payload?.name || payload?.restaurant?.title;
+    restaurant?.name || payload?.restaurantName || payload?.name || restaurant?.title;
+
+  const logoUrl =
+    restaurant?.logoUrl || restaurant?.logoURL || payload?.logoUrl || payload?.logoURL;
+
+  const heroImageUrl =
+    restaurant?.heroImageUrl ||
+    restaurant?.heroImageURL ||
+    restaurant?.heroUrl ||
+    payload?.heroImageUrl ||
+    payload?.heroUrl;
+
+  const address =
+    restaurant?.address ||
+    payload?.address ||
+    [restaurant?.city, restaurant?.state].filter(Boolean).join(", ");
 
   const rawCategories =
     payload?.categories || payload?.menu?.categories || payload?.menuCategories || payload?.data?.categories || [];
@@ -48,5 +71,5 @@ export function normalizePublicMenu(payload: any): { restaurantName?: string; ca
     };
   });
 
-  return { restaurantName, categories };
+  return { restaurantName, logoUrl, heroImageUrl, address, categories };
 }

@@ -1,10 +1,5 @@
-import AppShell from "@/components/AppShell";
-import AdminDashboardApi from "@/components/admin/AdminDashboardApi";
+import { redirect } from "next/navigation";
 
-export default function AdminPage() {
-  return (
-    <AppShell activeHref="/admin">
-      <AdminDashboardApi />
-    </AppShell>
-  );
+export default function LegacyAdminRedirect() {
+  redirect("/r/dashboard");
 }

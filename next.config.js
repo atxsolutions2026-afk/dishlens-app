@@ -10,9 +10,13 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "images.unsplash.com" },
-      { protocol: "https", hostname: "cdn.atxsolutions.com" },
-
+      { protocol: "https", hostname: "cdn.atxsolutions.com", pathname: "/**" },
+      {
+        protocol: "https",
+        hostname: "tkdhzhohwsvyvlbdochd.supabase.co",
+        pathname: "/**",
+      },
+      { protocol: "https", hostname: "images.unsplash.com", pathname: "/**" },
       // ✅ ADD THIS
       {
         protocol: "https",

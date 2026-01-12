@@ -1,6 +1,4 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/customer/page": "app/customer/page.js",
-  "/admin/page": "app/admin/page.js",
-  "/admin/dish/[id]/edit/page": "app/admin/dish/[id]/edit/page.js"
+  "/m/[slug]/page": "app/m/[slug]/page.js"
 }

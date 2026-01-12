@@ -1,44 +1,55 @@
 "use client";
 
 import Image from "next/image";
-import Panel from "@/components/layout/Panel";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import { BackIcon, HeartIcon, FlameIcon, LeafIcon, AlertIcon } from "@/components/icons";
 import { UiDish } from "@/lib/menuAdapter";
+import { getFavorites, toggleFavorite } from "@/lib/likes";
 
-function spiceDots(spice?: string) {
+function money(v: number | undefined) {
+  const p = Number.isFinite(v) ? (v as number) : 0;
+  return `$${p.toFixed(2)}`;
+}
+
+function spiceLabel(spice?: string) {
   const s = (spice || "NONE").toUpperCase();
-  const count = s === "HOT" ? 3 : s === "MEDIUM" ? 2 : s === "MILD" ? 1 : 0;
-  return (
-    <div className="flex items-center gap-1">
-      {[1, 2, 3].map((i) => (
-        <span
-          key={i}
-          className={[
-            "h-2.5 w-2.5 rounded-full",
-            i <= count ? "bg-red-600" : "bg-zinc-200"
-          ].join(" ")}
-        />
-      ))}
-    </div>
-  );
+  if (s === "HOT") return "Hot";
+  if (s === "MEDIUM") return "Medium";
+  if (s === "MILD") return "Mild";
+  return "None";
 }
 
 export default function DishPreview({
   dish,
-  variant = "desktop"
+  variant = "desktop",
+  backHref
 }: {
   dish: UiDish | null;
   variant?: "desktop" | "mobile";
+  backHref?: string;
 }) {
+  const [muted, setMuted] = useState(true);
+  const [favs, setFavs] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    // load favorites once we have a dish + slug context embedded in backHref
+    // (backHref is /m/<slug>)
+    if (!backHref) return;
+    const parts = backHref.split("/m/");
+    const slug = parts[1] ? decodeURIComponent(parts[1]) : "";
+    if (slug) setFavs(getFavorites(slug));
+  }, [backHref, dish?.id]);
   if (!dish) {
     return (
-      <Panel className="p-6">
+      <div className="rounded-3xl border bg-white p-6">
         <div className="text-sm font-semibold text-zinc-700">Select a dish</div>
         <div className="mt-1 text-sm text-zinc-500">
           Choose an item from the menu to preview it here.
         </div>
-      </Panel>
+      </div>
     );
   }
 
@@ -46,16 +57,146 @@ export default function DishPreview({
     dish.imageUrl ||
     "https://images.unsplash.com/photo-1604909052743-94e838986d9a?auto=format&fit=crop&w=1200&q=70";
   const vid = dish.videoUrl;
-  const price = Number.isFinite(dish.price) ? dish.price : 0;
 
+  const slugFromBackHref = (() => {
+    if (!backHref) return "";
+    const parts = backHref.split("/m/");
+    return parts[1] ? decodeURIComponent(parts[1]) : "";
+  })();
+  const isFav = slugFromBackHref ? favs.has(dish.id) : false;
+
+  if (variant === "mobile") {
+    return (
+      <div className="bg-white">
+        <div className="relative">
+          {vid ? (
+            <video
+              src={vid}
+              className="w-full h-[320px] object-cover bg-black"
+              poster={img}
+              autoPlay
+              playsInline
+              loop
+              muted={muted}
+            />
+          ) : (
+            <div className="relative h-[320px] w-full">
+              <Image src={img} alt={dish.name} fill className="object-cover" priority />
+            </div>
+          )}
+
+          {/* Top actions (modern, one-hand friendly) */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/0 to-black/60" />
+
+          {backHref && (
+            <Link
+              href={backHref}
+              className="absolute left-4 top-4 h-11 w-11 rounded-full bg-white/95 backdrop-blur border shadow-soft grid place-items-center"
+              aria-label="Back"
+            >
+              <BackIcon className="h-6 w-6 text-zinc-900" />
+            </Link>
+          )}
+
+          {/* Love */}
+          {slugFromBackHref ? (
+            <button
+              type="button"
+              onClick={() => setFavs(toggleFavorite(slugFromBackHref, dish.id))}
+              className={
+                "absolute right-4 top-4 h-11 w-11 rounded-full backdrop-blur border shadow-soft grid place-items-center " +
+                (isFav ? "bg-white text-rose-600" : "bg-white/95 text-zinc-900")
+              }
+              aria-label={isFav ? "Unlove dish" : "Love dish"}
+            >
+              <HeartIcon className="h-5 w-5" />
+            </button>
+          ) : null}
+
+          {/* Sound toggle (autoplay-friendly) */}
+          {vid ? (
+            <button
+              type="button"
+              onClick={() => setMuted((v) => !v)}
+              className="absolute left-4 bottom-4 rounded-full bg-black/55 text-white px-3 py-2 text-xs font-semibold border border-white/20"
+              aria-label={muted ? "Unmute" : "Mute"}
+            >
+              {muted ? "🔇 Sound" : "🔊 Sound"}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="px-4 pt-4 pb-24">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-2xl font-black leading-tight text-zinc-900">
+                {dish.name}
+              </div>
+              {dish.categoryName ? (
+                <div className="mt-1 text-xs text-zinc-500">{dish.categoryName}</div>
+              ) : null}
+            </div>
+            <div className="shrink-0 text-lg font-semibold text-zinc-900">{money(dish.price)}</div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Badge tone="neutral">
+              <span className="inline-flex items-center gap-1">
+                <FlameIcon className="h-4 w-4" />
+                Spice: {spiceLabel(dish.spice)}
+              </span>
+            </Badge>
+            <Badge tone={dish.isVeg ? "success" : "neutral"}>
+              <span className="inline-flex items-center gap-1">
+                <LeafIcon className="h-4 w-4" />
+                {dish.isVeg ? "Veg" : "Non-Veg"}
+              </span>
+            </Badge>
+            {(dish.allergens ?? []).slice(0, 4).map((a) => (
+              <Badge key={a} tone="warning">
+                <span className="inline-flex items-center gap-1">
+                  <AlertIcon className="h-4 w-4" />
+                  {a}
+                </span>
+              </Badge>
+            ))}
+          </div>
+
+          <div className="mt-4 rounded-2xl border bg-zinc-50 p-4">
+            <div className="text-xs font-semibold text-zinc-700">Description</div>
+            <p className="mt-1 text-sm leading-6 text-zinc-700">
+              {dish.description ?? " "}
+            </p>
+          </div>
+        </div>
+
+        {/* Sticky bottom Add bar (Uber-like) */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur border-t">
+          <div className="mx-auto max-w-3xl px-4 py-3 flex gap-2">
+            <Button className="flex-1">
+              Add • {money(dish.price)}
+            </Button>
+            <Button variant="secondary" className="px-4">
+              Share
+            </Button>
+          </div>
+          <div className="pb-2 text-center text-[11px] text-zinc-500">
+            Ordering is MVP scope (UI only)
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop preview (keep existing style, but slightly cleaner)
   return (
-    <Panel className="overflow-hidden">
+    <div className="rounded-3xl border bg-white overflow-hidden shadow-soft">
       <div className="relative">
         {vid ? (
           <video
             src={vid}
             controls
-            className={["w-full object-cover", variant === "desktop" ? "h-[360px]" : "h-[240px]"].join(" ")}
+            className="w-full h-[360px] object-cover bg-black"
             poster={img}
           />
         ) : (
@@ -64,14 +205,10 @@ export default function DishPreview({
             alt={dish.name}
             width={1400}
             height={900}
-            className={["w-full object-cover", variant === "desktop" ? "h-[360px]" : "h-[240px]"].join(" ")}
+            className="w-full h-[360px] object-cover"
             priority
           />
         )}
-
-        <div className="absolute left-5 bottom-5 rounded-2xl bg-black/55 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur">
-          ${price.toFixed(2)}
-        </div>
       </div>
 
       <div className="p-5">
@@ -82,30 +219,17 @@ export default function DishPreview({
               <div className="mt-1 text-xs text-zinc-500">{dish.categoryName}</div>
             )}
           </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border bg-white px-3 py-2">
-            <div className="text-[11px] font-semibold text-zinc-500">Spice</div>
-            <div className="mt-1 flex items-center gap-2">
-              {spiceDots(dish.spice)}
-              <span className="text-xs font-semibold">{(dish.spice ?? "NONE").toString()}</span>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border bg-white px-3 py-2">
-            <div className="text-[11px] font-semibold text-zinc-500">Portion</div>
-            <div className="mt-1 text-xs font-semibold">Full Plate</div>
-          </div>
+          <div className="text-lg font-semibold">{money(dish.price)}</div>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
+          <Badge tone="neutral">Spice: {spiceLabel(dish.spice)}</Badge>
+          {dish.isVeg ? <Badge tone="success">Veg</Badge> : <Badge>Non-Veg</Badge>}
           {(dish.allergens ?? []).slice(0, 8).map((a) => (
             <Badge key={a} tone="warning">
               {a}
             </Badge>
           ))}
-          {dish.isVeg ? <Badge tone="success">Vegetarian</Badge> : <Badge>Non-Veg</Badge>}
         </div>
 
         <p className="mt-3 text-sm text-zinc-600">
@@ -123,6 +247,6 @@ export default function DishPreview({
           Ordering is future scope (MVP UI only)
         </div>
       </div>
-    </Panel>
+    </div>
   );
 }
