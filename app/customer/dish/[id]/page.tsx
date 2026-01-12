@@ -10,7 +10,7 @@ export default async function DishDetailPage({
 
   return (
     <AppShell activeHref="/customer">
-      <CustomerDishDetailApi dishId={id} />
+      <CustomerDishDetailApi dishId={id} slug={""} />
     </AppShell>
   );
 }
