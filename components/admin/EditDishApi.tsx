@@ -6,13 +6,15 @@ import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import Link from "next/link";
 import { BackIcon } from "@/components/icons";
-import { useState } from "react";
-import { uploadMenuItemImage, uploadMenuItemVideo } from "@/lib/endpoints";
+import { useEffect, useMemo, useState } from "react";
+import { adminMenu, listRestaurants, uploadMenuItemImage, uploadMenuItemVideo } from "@/lib/endpoints";
 import { getToken } from "@/lib/auth";
+import { normalizePublicMenu, UiDish } from "@/lib/menuAdapter";
 
 type Kind = "IMAGE" | "VIDEO";
 
 export default function EditDishApi() {
+  const [restaurantId, setRestaurantId] = useState("");
   const [menuItemId, setMenuItemId] = useState("");
   const [kind, setKind] = useState<Kind>("IMAGE");
   const [file, setFile] = useState<File | null>(null);
@@ -20,6 +22,53 @@ export default function EditDishApi() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  const [restaurants, setRestaurants] = useState<any[]>([]);
+  const [menuItems, setMenuItems] = useState<UiDish[]>([]);
+  const [itemQuery, setItemQuery] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rs = await listRestaurants();
+        const arr = Array.isArray(rs) ? rs : rs?.restaurants ?? rs?.data ?? [];
+        setRestaurants(arr);
+        // Auto-select first restaurant if only one exists
+        if (!restaurantId && arr?.length === 1) setRestaurantId(arr[0].id);
+      } catch {
+        // Non-blocking; page still works with manual ID entry
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      if (!restaurantId) {
+        setMenuItems([]);
+        return;
+      }
+      try {
+        const payload = await adminMenu(restaurantId);
+        const norm = normalizePublicMenu(payload);
+        const items: UiDish[] = [];
+        for (const c of norm.categories ?? []) {
+          for (const it of c.items ?? []) items.push(it);
+        }
+        setMenuItems(items);
+      } catch {
+        setMenuItems([]);
+      }
+    })();
+  }, [restaurantId]);
+
+  const filteredItems = useMemo(() => {
+    if (!itemQuery) return menuItems;
+    const q = itemQuery.toLowerCase();
+    return menuItems.filter((i) =>
+      (i.name || "").toLowerCase().includes(q) || (i.categoryName || "").toLowerCase().includes(q)
+    );
+  }, [menuItems, itemQuery]);
 
   async function doUpload() {
     if (!getToken()) {
@@ -105,22 +154,66 @@ export default function EditDishApi() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-2">
-            <label className="text-[11px] font-semibold text-zinc-500">
-              Menu Item ID (required)
-            </label>
-            <input
-              value={menuItemId}
-              onChange={(e) => setMenuItemId(e.target.value)}
-              placeholder="fdf5b60a-bdaa-4151-ae61-4a86f55a33ba"
-              className="rounded-2xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-zinc-200"
-            />
-            <div className="text-[11px] text-zinc-500">
-              Uses{" "}
-              <code className="px-1 bg-zinc-50 border rounded">
-                POST /menu-items/:id/{kind === "IMAGE" ? "image" : "video"}
-              </code>{" "}
-              (multipart field: <b>file</b>)
+          <div className="mt-4 grid gap-3">
+            <div className="grid gap-2">
+              <label className="text-[11px] font-semibold text-zinc-500">
+                Restaurant
+              </label>
+              <select
+                value={restaurantId}
+                onChange={(e) => {
+                  setRestaurantId(e.target.value);
+                  setMenuItemId("");
+                }}
+                className="rounded-2xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-zinc-200"
+              >
+                <option value="">Select a restaurant…</option>
+                {restaurants.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}{r.city ? ` — ${r.city}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-[11px] font-semibold text-zinc-500">
+                Menu item
+              </label>
+              <input
+                value={itemQuery}
+                onChange={(e) => setItemQuery(e.target.value)}
+                placeholder="Search dish name or category…"
+                className="rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-200"
+              />
+              <select
+                value={menuItemId}
+                onChange={(e) => setMenuItemId(e.target.value)}
+                className="rounded-2xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-zinc-200"
+              >
+                <option value="">Select a menu item…</option>
+                {filteredItems.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.name}{i.categoryName ? ` (${i.categoryName})` : ""}
+                  </option>
+                ))}
+              </select>
+              <div className="text-[11px] text-zinc-500">
+                Uses{" "}
+                <code className="px-1 bg-zinc-50 border rounded">
+                  POST /menu-items/:id/{kind === "IMAGE" ? "image" : "video"}
+                </code>{" "}
+                (multipart field: <b>file</b>)
+              </div>
+              <details className="text-[11px] text-zinc-500">
+                <summary className="cursor-pointer">Advanced: enter Menu Item ID manually</summary>
+                <input
+                  value={menuItemId}
+                  onChange={(e) => setMenuItemId(e.target.value)}
+                  placeholder="fdf5b60a-bdaa-4151-ae61-4a86f55a33ba"
+                  className="mt-2 w-full rounded-2xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-zinc-200"
+                />
+              </details>
             </div>
           </div>
 

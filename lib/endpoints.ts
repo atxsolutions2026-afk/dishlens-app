@@ -59,3 +59,19 @@ export async function uploadRestaurantHero(restaurantId: string, file: File) {
   form.append("file", file);
   return apiFetch<any>(`/restaurants/${restaurantId}/hero`, { method: "POST", body: form });
 }
+
+// Public dish rating (expected backend endpoints)
+// POST /public/menu-items/:id/rating  { rating: 1..5, clientId?: string }
+export async function rateMenuItem(menuItemId: string, rating: number, clientId?: string) {
+  return apiFetch<any>(`/public/menu-items/${menuItemId}/rating`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rating, clientId })
+  });
+}
+
+// Admin ratings summary (expected backend endpoint)
+// GET /restaurants/:id/ratings
+export async function restaurantRatingsSummary(restaurantId: string) {
+  return apiFetch<any>(`/restaurants/${restaurantId}/ratings`);
+}

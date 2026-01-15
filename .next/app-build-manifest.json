@@ -1,9 +1,9 @@
 {
   "pages": {
-    "/m/[slug]/page": [
+    "/m/[slug]/dish/[id]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/m/[slug]/page.js"
+      "static/chunks/app/m/[slug]/dish/[id]/page.js"
     ],
     "/m/layout": [
       "static/chunks/webpack.js",
@@ -16,10 +16,40 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/_not-found/page": [
+    "/r/ratings/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/_not-found/page.js"
+      "static/chunks/app/r/ratings/page.js"
+    ],
+    "/r/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/layout.js"
+    ],
+    "/m/[slug]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/m/[slug]/page.js"
+    ],
+    "/r/qr/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/qr/page.js"
+    ],
+    "/r/branding/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/branding/page.js"
+    ],
+    "/r/uploads/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/uploads/page.js"
+    ],
+    "/r/dashboard/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/dashboard/page.js"
     ]
   }
 }

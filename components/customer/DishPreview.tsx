@@ -8,6 +8,8 @@ import Button from "@/components/ui/Button";
 import { BackIcon, HeartIcon, FlameIcon, LeafIcon, AlertIcon } from "@/components/icons";
 import { UiDish } from "@/lib/menuAdapter";
 import { getFavorites, toggleFavorite } from "@/lib/likes";
+import StarRating from "@/components/customer/StarRating";
+import { rateMenuItem } from "@/lib/endpoints";
 
 function money(v: number | undefined) {
   const p = Number.isFinite(v) ? (v as number) : 0;
@@ -33,6 +35,57 @@ export default function DishPreview({
 }) {
   const [muted, setMuted] = useState(true);
   const [favs, setFavs] = useState<Set<string>>(new Set());
+  const [myRating, setMyRating] = useState<number | undefined>(undefined);
+  const [ratingBusy, setRatingBusy] = useState(false);
+  const [ratingMsg, setRatingMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!dish?.id) return;
+    try {
+      const key = `dl_rating_${dish.id}`;
+      const v = localStorage.getItem(key);
+      const n = v ? Number(v) : NaN;
+      setMyRating(Number.isFinite(n) ? n : undefined);
+    } catch {
+      // ignore
+    }
+  }, [dish?.id]);
+
+  function getOrCreateClientId() {
+    try {
+      const key = "dl_client_id";
+      let id = localStorage.getItem(key);
+      if (!id) {
+        id = (crypto as any)?.randomUUID ? (crypto as any).randomUUID() : `${Date.now()}_${Math.random()}`;
+        localStorage.setItem(key, id);
+      }
+      return id;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function submitRating(v: number) {
+    if (!dish?.id) return;
+    setMyRating(v);
+    setRatingMsg(null);
+    try {
+      localStorage.setItem(`dl_rating_${dish.id}`, String(v));
+    } catch {
+      // ignore
+    }
+
+    setRatingBusy(true);
+    try {
+      await rateMenuItem(dish.id, v, getOrCreateClientId());
+      setRatingMsg("Thanks! Your rating was submitted.");
+    } catch {
+      // Backend may not be deployed yet; keep local rating for UX.
+      setRatingMsg("Saved on this device (server not available yet).");
+    } finally {
+      setRatingBusy(false);
+    }
+  }
 
   useEffect(() => {
     // load favorites once we have a dish + slug context embedded in backHref
@@ -160,6 +213,23 @@ export default function DishPreview({
                 </span>
               </Badge>
             ))}
+          </div>
+
+          {/* Ratings */}
+          <div className="mt-4 rounded-2xl border bg-white p-4">
+            <div className="text-xs font-semibold text-zinc-700">Rate this dish</div>
+            <div className="mt-2">
+              <StarRating
+                value={myRating}
+                avg={dish.avgRating}
+                count={dish.ratingCount}
+                disabled={ratingBusy}
+                onChange={submitRating}
+              />
+            </div>
+            {ratingMsg ? (
+              <div className="mt-2 text-[11px] text-zinc-500">{ratingMsg}</div>
+            ) : null}
           </div>
 
           <div className="mt-4 rounded-2xl border bg-zinc-50 p-4">

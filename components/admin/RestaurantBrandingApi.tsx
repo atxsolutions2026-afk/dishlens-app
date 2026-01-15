@@ -6,8 +6,8 @@ import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import Link from "next/link";
 import { BackIcon } from "@/components/icons";
-import { useState } from "react";
-import { uploadRestaurantHero, uploadRestaurantLogo } from "@/lib/endpoints";
+import { useEffect, useState } from "react";
+import { listRestaurants, uploadRestaurantHero, uploadRestaurantLogo } from "@/lib/endpoints";
 import { getToken } from "@/lib/auth";
 
 type Kind = "LOGO" | "HERO";
@@ -20,6 +20,22 @@ export default function RestaurantBrandingApi() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  const [restaurants, setRestaurants] = useState<any[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rs = await listRestaurants();
+        const arr = Array.isArray(rs) ? rs : rs?.restaurants ?? rs?.data ?? [];
+        setRestaurants(arr);
+        if (!restaurantId && arr?.length === 1) setRestaurantId(arr[0].id);
+      } catch {
+        // Non-blocking; manual ID entry still works
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function doUpload() {
     if (!getToken()) {
@@ -105,16 +121,34 @@ export default function RestaurantBrandingApi() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-2">
-            <label className="text-[11px] font-semibold text-zinc-500">
-              Restaurant ID (required)
-            </label>
-            <input
-              value={restaurantId}
-              onChange={(e) => setRestaurantId(e.target.value)}
-              placeholder="70330d6d-932b-48ae-8a13-e7212273ad69"
-              className="rounded-2xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-zinc-200"
-            />
+          <div className="mt-4 grid gap-3">
+            <div className="grid gap-2">
+              <label className="text-[11px] font-semibold text-zinc-500">
+                Restaurant
+              </label>
+              <select
+                value={restaurantId}
+                onChange={(e) => setRestaurantId(e.target.value)}
+                className="rounded-2xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-zinc-200"
+              >
+                <option value="">Select a restaurant…</option>
+                {restaurants.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}{r.city ? ` — ${r.city}` : ""}
+                  </option>
+                ))}
+              </select>
+              <details className="text-[11px] text-zinc-500">
+                <summary className="cursor-pointer">Advanced: enter Restaurant ID manually</summary>
+                <input
+                  value={restaurantId}
+                  onChange={(e) => setRestaurantId(e.target.value)}
+                  placeholder="70330d6d-932b-48ae-8a13-e7212273ad69"
+                  className="mt-2 w-full rounded-2xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-zinc-200"
+                />
+              </details>
+            </div>
+
             <div className="text-[11px] text-zinc-500">
               Uses{" "}
               <code className="px-1 bg-zinc-50 border rounded">

@@ -9,6 +9,8 @@ export type UiDish = {
   allergens?: string[];
   description?: string;
   categoryName?: string;
+  avgRating?: number;
+  ratingCount?: number;
 };
 
 export type UiCategory = {
@@ -60,7 +62,9 @@ export function normalizePublicMenu(payload: any): {
       spice: i?.spiceLevel ?? i?.spice ?? "NONE",
       allergens: Array.isArray(i?.allergens) ? i.allergens : (i?.allergens ? Object.keys(i.allergens) : []),
       description: i?.description || i?.details,
-      categoryName: String(c?.name ?? c?.title ?? "")
+      categoryName: String(c?.name ?? c?.title ?? ""),
+      avgRating: typeof i?.avgRating === "number" ? i.avgRating : (typeof i?.ratingAvg === "number" ? i.ratingAvg : undefined),
+      ratingCount: typeof i?.ratingCount === "number" ? i.ratingCount : (typeof i?.ratingsCount === "number" ? i.ratingsCount : undefined)
     }));
 
     return {

@@ -13,6 +13,7 @@ const tabs = [
   { href: "/r/dashboard", label: "Dashboard" },
   { href: "/r/uploads", label: "Uploads" },
   { href: "/r/branding", label: "Branding" },
+  { href: "/r/ratings", label: "Ratings" },
   { href: "/r/qr", label: "QR Codes" }
 ];
 
