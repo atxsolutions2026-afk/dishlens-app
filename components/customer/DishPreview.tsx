@@ -51,20 +51,26 @@ export default function DishPreview({
     }
   }, [dish?.id]);
 
-  function getOrCreateClientId() {
-    try {
-      const key = "dl_client_id";
-      let id = localStorage.getItem(key);
-      if (!id) {
-        id = (crypto as any)?.randomUUID ? (crypto as any).randomUUID() : `${Date.now()}_${Math.random()}`;
-        localStorage.setItem(key, id);
-      }
-      return id;
-    } catch {
+  function getOrCreateClientId(): string | undefined {
+  try {
+    const key = "dl_client_id";
+    let id = localStorage.getItem(key);
+
+    if (typeof id !== "string" || id.length === 0) {
+      const newId =
+        (crypto as any)?.randomUUID?.() ??
+        `${Date.now()}_${Math.random()}`;
+
+      localStorage.setItem(key, newId);
+      return newId;
+    }
+
+    return id;
+   } catch {
       return undefined;
     }
   }
-
+  
   async function submitRating(v: number) {
     if (!dish?.id) return;
     setMyRating(v);

@@ -1,9 +1,1 @@
-{
-  "/m/[slug]/dish/[id]/page": "app/m/[slug]/dish/[id]/page.js",
-  "/r/ratings/page": "app/r/ratings/page.js",
-  "/m/[slug]/page": "app/m/[slug]/page.js",
-  "/r/qr/page": "app/r/qr/page.js",
-  "/r/branding/page": "app/r/branding/page.js",
-  "/r/uploads/page": "app/r/uploads/page.js",
-  "/r/dashboard/page": "app/r/dashboard/page.js"
-}
+{}
