@@ -5,9 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
-import { BackIcon, HeartIcon, FlameIcon, LeafIcon, AlertIcon } from "@/components/icons";
+import { BackIcon, FlameIcon, LeafIcon, AlertIcon, PlayIcon } from "@/components/icons";
 import { UiDish } from "@/lib/menuAdapter";
-import { getFavorites, toggleFavorite } from "@/lib/likes";
 import StarRating from "@/components/customer/StarRating";
 import { rateMenuItem } from "@/lib/endpoints";
 
@@ -28,13 +27,15 @@ export default function DishPreview({
   dish,
   variant = "desktop",
   backHref
+  ,onAddToOrder
 }: {
   dish: UiDish | null;
   variant?: "desktop" | "mobile";
   backHref?: string;
+  onAddToOrder?: () => void;
 }) {
   const [muted, setMuted] = useState(true);
-  const [favs, setFavs] = useState<Set<string>>(new Set());
+  const [showVideo, setShowVideo] = useState(false);
   const [myRating, setMyRating] = useState<number | undefined>(undefined);
   const [ratingBusy, setRatingBusy] = useState(false);
   const [ratingMsg, setRatingMsg] = useState<string | null>(null);
@@ -94,13 +95,9 @@ export default function DishPreview({
   }
 
   useEffect(() => {
-    // load favorites once we have a dish + slug context embedded in backHref
-    // (backHref is /m/<slug>)
-    if (!backHref) return;
-    const parts = backHref.split("/m/");
-    const slug = parts[1] ? decodeURIComponent(parts[1]) : "";
-    if (slug) setFavs(getFavorites(slug));
-  }, [backHref, dish?.id]);
+    // reset video reveal when switching dishes
+    setShowVideo(false);
+  }, [dish?.id]);
   if (!dish) {
     return (
       <div className="rounded-3xl border bg-white p-6">
@@ -117,35 +114,53 @@ export default function DishPreview({
     "https://images.unsplash.com/photo-1604909052743-94e838986d9a?auto=format&fit=crop&w=1200&q=70";
   const vid = dish.videoUrl;
 
-  const slugFromBackHref = (() => {
-    if (!backHref) return "";
-    const parts = backHref.split("/m/");
-    return parts[1] ? decodeURIComponent(parts[1]) : "";
-  })();
-  const isFav = slugFromBackHref ? favs.has(dish.id) : false;
-
   if (variant === "mobile") {
     return (
       <div className="bg-white">
         <div className="relative">
           {vid ? (
-            <video
-              src={vid}
-              className="w-full h-[320px] object-cover bg-black"
-              poster={img}
-              autoPlay
-              playsInline
-              loop
-              muted={muted}
-            />
+            <div className="w-full">
+              {showVideo ? (
+                <video
+                  src={vid}
+                  className="w-full aspect-video object-contain bg-black"
+                  poster={img}
+                  autoPlay
+                  playsInline
+                  controls
+                  muted={muted}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowVideo(true)}
+                  className="block w-full"
+                  aria-label="Play video"
+                >
+                  <div className="relative w-full aspect-video bg-black">
+                    <Image
+                      src={img}
+                      alt={dish.name}
+                      fill
+                      className="object-cover"
+                      priority
+                    />
+                  </div>
+                  <div className="absolute bottom-4 left-4 rounded-full bg-black/60 text-white px-4 py-2 text-sm font-semibold flex items-center gap-2">
+                    <PlayIcon className="h-5 w-5" />
+                    Play
+                  </div>
+                </button>
+              )}
+            </div>
           ) : (
-            <div className="relative h-[320px] w-full">
+            <div className="relative w-full aspect-video">
               <Image src={img} alt={dish.name} fill className="object-cover" priority />
             </div>
           )}
 
           {/* Top actions (modern, one-hand friendly) */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/0 to-black/60" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/0 to-black/60 pointer-events-none" />
 
           {backHref && (
             <Link
@@ -157,23 +172,8 @@ export default function DishPreview({
             </Link>
           )}
 
-          {/* Love */}
-          {slugFromBackHref ? (
-            <button
-              type="button"
-              onClick={() => setFavs(toggleFavorite(slugFromBackHref, dish.id))}
-              className={
-                "absolute right-4 top-4 h-11 w-11 rounded-full backdrop-blur border shadow-soft grid place-items-center " +
-                (isFav ? "bg-white text-rose-600" : "bg-white/95 text-zinc-900")
-              }
-              aria-label={isFav ? "Unlove dish" : "Love dish"}
-            >
-              <HeartIcon className="h-5 w-5" />
-            </button>
-          ) : null}
-
-          {/* Sound toggle (autoplay-friendly) */}
-          {vid ? (
+          {/* Sound toggle (when video is showing) */}
+          {vid && showVideo ? (
             <button
               type="button"
               onClick={() => setMuted((v) => !v)}
@@ -249,15 +249,15 @@ export default function DishPreview({
         {/* Sticky bottom Add bar (Uber-like) */}
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur border-t">
           <div className="mx-auto max-w-3xl px-4 py-3 flex gap-2">
-            <Button className="flex-1">
-              Add • {money(dish.price)}
+            <Button
+              className="flex-1"
+              onClick={() => {
+                onAddToOrder?.();
+                window.alert("Added to your order. Open the cart to checkout.");
+              }}
+            >
+              Add to Order • {money(dish.price)}
             </Button>
-            <Button variant="secondary" className="px-4">
-              Share
-            </Button>
-          </div>
-          <div className="pb-2 text-center text-[11px] text-zinc-500">
-            Ordering is MVP scope (UI only)
           </div>
         </div>
       </div>
@@ -272,7 +272,7 @@ export default function DishPreview({
           <video
             src={vid}
             controls
-            className="w-full h-[360px] object-cover bg-black"
+            className="w-full aspect-video object-contain bg-black"
             poster={img}
           />
         ) : (
@@ -281,7 +281,7 @@ export default function DishPreview({
             alt={dish.name}
             width={1400}
             height={900}
-            className="w-full h-[360px] object-cover"
+            className="w-full aspect-video object-cover"
             priority
           />
         )}

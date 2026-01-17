@@ -1,1 +1,8 @@
-{}
+{
+  "/r/orders/page": "app/r/orders/page.js",
+  "/m/[slug]/page": "app/m/[slug]/page.js",
+  "/r/dashboard/page": "app/r/dashboard/page.js",
+  "/m/[slug]/dish/[id]/page": "app/m/[slug]/dish/[id]/page.js",
+  "/r/uploads/page": "app/r/uploads/page.js",
+  "/r/branding/page": "app/r/branding/page.js"
+}

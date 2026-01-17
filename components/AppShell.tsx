@@ -11,6 +11,7 @@ import { clearToken, getUser } from "@/lib/auth";
 
 const tabs = [
   { href: "/r/dashboard", label: "Dashboard" },
+  { href: "/r/orders", label: "Kitchen" },
   { href: "/r/uploads", label: "Uploads" },
   { href: "/r/branding", label: "Branding" },
   { href: "/r/ratings", label: "Ratings" },

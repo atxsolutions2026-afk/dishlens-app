@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { clsx } from "clsx";
 import Container from "@/components/layout/Container";
-import { publicMenu } from "@/lib/endpoints";
+import { createPublicOrder, publicMenu } from "@/lib/endpoints";
 import { normalizePublicMenu, UiCategory, UiDish } from "@/lib/menuAdapter";
-import { SearchIcon, PlayIcon, HeartIcon } from "@/components/icons";
-import { getFavorites, toggleFavorite } from "@/lib/likes";
+import { SearchIcon, PlayIcon } from "@/components/icons";
 import VideoPlayerModal from "@/components/customer/VideoPlayerModal";
+import CartDrawer from "@/components/customer/CartDrawer";
+import { getOrCreateTable } from "@/lib/table";
+import { useCart } from "@/lib/useCart";
 
 function isDrinksCategory(name: string) {
   const n = name.toLowerCase();
@@ -26,12 +29,18 @@ function money(v: number | undefined) {
   return `$${p.toFixed(2)}`;
 }
 
+function moneyNumber(v: number | undefined) {
+  return Number.isFinite(v) ? (v as number) : 0;
+}
+
 function shortText(s?: string) {
   if (!s) return "";
   return s.length > 90 ? `${s.slice(0, 90).trim()}…` : s;
 }
 
 export default function CustomerMenuApi({ slug }: { slug: string }) {
+  const searchParams = useSearchParams();
+  const [table, setTable] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -44,13 +53,18 @@ export default function CustomerMenuApi({ slug }: { slug: string }) {
   const [activeTab, setActiveTab] = useState<string>("");
   const [q, setQ] = useState("");
 
-  // Fullscreen video playback (YouTube-like)
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [videoTitle, setVideoTitle] = useState<string>("");
 
-  // Local favorites (heart)
-  const [favs, setFavs] = useState<Set<string>>(new Set());
+  const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    const t = searchParams?.get("t") ?? undefined;
+    const resolved = getOrCreateTable(slug, t);
+    setTable(resolved);
+  }, [slug, searchParams]);
+
+  const cart = useCart(slug, table || "T-000");
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
@@ -77,19 +91,12 @@ export default function CustomerMenuApi({ slug }: { slug: string }) {
     })();
   }, [slug]);
 
-  useEffect(() => {
-    // load favorites on mount
-    setFavs(getFavorites(slug));
-  }, [slug]);
-
   const categoriesWithPicked = useMemo(() => {
     const hasPicked = categories.some(
       (c) => c.name.toLowerCase() === "picked for you"
     );
     if (hasPicked || categories.length === 0) return categories;
 
-    // Picked for you = highest-rated dishes when ratings are available.
-    // Fallback: first dish from each category.
     const all = categories.flatMap((c) => c.items ?? []);
     const rated = all
       .filter((d) => typeof d.avgRating === "number")
@@ -134,7 +141,6 @@ export default function CustomerMenuApi({ slug }: { slug: string }) {
     filteredByQuery?.[0]?.items?.[0]?.imageUrl ||
     "https://images.unsplash.com/photo-1604909052743-94e838986d9a?auto=format&fit=crop&w=1400&q=70";
 
-  // Update active tab on scroll (Uber-style)
   useEffect(() => {
     if (!filteredByQuery.length) return;
 
@@ -165,16 +171,13 @@ export default function CustomerMenuApi({ slug }: { slug: string }) {
     const el = sectionRefs.current[name];
     if (!el) return;
 
-    // Move underline immediately on click
     setActiveTab(name);
 
-    // Account for sticky tab bar so the heading isn't hidden.
     const stickyOffset = 64;
     const y = el.getBoundingClientRect().top + window.scrollY - stickyOffset;
     window.scrollTo({ top: y, behavior: "smooth" });
   };
 
-  // ✅ Single openVideo implementation (duplicate removed)
   const openVideo = (dish: UiDish) => {
     if (!dish.videoUrl) {
       window.location.href = `${baseHref}/dish/${dish.id}`;
@@ -189,6 +192,29 @@ export default function CustomerMenuApi({ slug }: { slug: string }) {
     setVideoTitle("");
   };
 
+  const submitOrder = async () => {
+    if (submitting) return;
+    if (!table) return;
+    if (cart.lines.length === 0) return;
+
+    try {
+      setSubmitting(true);
+      await createPublicOrder(slug, {
+        tableNumber: table,
+        lines: cart.lines.map((l) => ({
+          menuItemId: l.menuItemId,
+          quantity: l.quantity,
+        })),
+      });
+      cart.clear();
+      window.alert("Order submitted! The restaurant will see it on the kitchen dashboard.");
+    } catch (e: any) {
+      window.alert(e?.message ?? "Failed to submit order");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="bg-white">
       <VideoPlayerModal
@@ -198,77 +224,77 @@ export default function CustomerMenuApi({ slug }: { slug: string }) {
         onClose={closeVideo}
       />
 
-      {/* Center column like Uber mobile */}
-      <Container className="max-w-3xl px-0 sm:px-4">
-        {/* Hero / Restaurant Header */}
-        <div className="relative overflow-hidden rounded-none sm:rounded-3xl sm:border">
-          <div className="relative h-[220px] w-full">
-            <Image
-              src={heroImage}
-              alt="Restaurant hero"
-              fill
-              className="object-cover"
-              priority
-              // Helps dev if image host is flaky; safe for prod too
-              unoptimized={process.env.NODE_ENV === "development"}
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/0 to-black/55" />
+      {/* Hero full-bleed (IMPORTANT: outer wrapper must be overflow-visible) */}
+      <div className="relative w-full overflow-visible">
+        {/* Only the IMAGE area should be overflow-hidden */}
+        <div className="relative h-[240px] w-full overflow-hidden">
+          <Image
+            src={heroImage}
+            alt="Restaurant hero"
+            fill
+            className="object-cover"
+            priority
+            unoptimized={process.env.NODE_ENV === "development"}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/0 to-black/55" />
+        </div>
 
-            {/* Logo badge (from API if available) */}
-            <div className="absolute left-4 bottom-[-30px]">
-              <div className="h-20 w-20 rounded-full bg-white shadow-soft grid place-items-center border">
-                {restaurantLogoUrl ? (
-                  <div className="relative h-14 w-14 overflow-hidden rounded-full">
-                    <Image
-                      src={restaurantLogoUrl}
-                      alt="Restaurant logo"
-                      fill
-                      className="object-cover"
-                      sizes="56px"
-                      unoptimized={process.env.NODE_ENV === "development"}
-                    />
-                  </div>
-                ) : (
-                  <div className="h-14 w-14 rounded-full bg-zinc-900 text-white grid place-items-center text-xs font-bold">
-                    DL
-                  </div>
-                )}
+        {/* Logo badge (positioned OUTSIDE the clipped image container) */}
+        <div className="absolute left-5 sm:left-6 -bottom-10 z-30">
+          <div className="h-20 w-20 rounded-full bg-white shadow-soft grid place-items-center border overflow-hidden">
+            {restaurantLogoUrl ? (
+              <div className="relative h-16 w-16 rounded-full bg-white p-1">
+                <Image
+                  src={restaurantLogoUrl}
+                  alt="Restaurant logo"
+                  fill
+                  className="object-contain"
+                  sizes="64px"
+                  unoptimized={process.env.NODE_ENV === "development"}
+                />
               </div>
-            </div>
+            ) : (
+              <div className="h-16 w-16 rounded-full bg-zinc-900 text-white grid place-items-center text-xs font-bold">
+                DL
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Content column */}
+      <Container className="max-w-3xl px-0 sm:px-4">
+        {/* extra top padding so logo overlap doesn't collide */}
+        <div className="px-4 pt-12 pb-4">
+          <div className="text-2xl font-black tracking-tight text-zinc-900">
+            {restaurantName}
           </div>
 
-          <div className="px-4 pt-10 pb-4">
-            <div className="text-2xl font-black tracking-tight text-zinc-900">
-              {restaurantName}
-            </div>
+          <div className="mt-1 text-sm text-zinc-600">
+            {restaurantAddress ? restaurantAddress : ""}
+          </div>
 
-            <div className="mt-1 text-sm text-zinc-600">
-              {restaurantAddress ? restaurantAddress : ""}
-            </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
+              tableNumber : {table || "—"}
+            </span>
+            <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
+              Tap image for video
+            </span>
+          </div>
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
-                Scan & view videos
-              </span>
-              <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
-                Tap a dish for details
-              </span>
-            </div>
-
-            {/* Search bar */}
-            <div className="mt-3 flex items-center gap-2 rounded-full border bg-white px-4 py-2.5">
-              <SearchIcon className="h-4 w-4 text-zinc-500" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search"
-                className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
-              />
-            </div>
+          {/* Search bar */}
+          <div className="mt-3 flex items-center gap-2 rounded-full border bg-white px-4 py-2.5">
+            <SearchIcon className="h-4 w-4 text-zinc-500" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
+            />
           </div>
         </div>
 
-        {/* Loading / error */}
         {loading && (
           <div className="px-4 py-6 text-sm text-zinc-600">Loading menu…</div>
         )}
@@ -333,9 +359,18 @@ export default function CustomerMenuApi({ slug }: { slug: string }) {
                             key={d.id}
                             dish={d}
                             baseHref={baseHref}
-                            isFav={favs.has(d.id)}
-                            onToggleFav={() => setFavs(toggleFavorite(slug, d.id))}
                             onPlay={() => openVideo(d)}
+                            onAdd={() =>
+                              cart.add(
+                                {
+                                  menuItemId: d.id,
+                                  name: d.name,
+                                  price: moneyNumber(d.price),
+                                  imageUrl: d.imageUrl ?? null,
+                                },
+                                1
+                              )
+                            }
                           />
                         ))}
                       </div>
@@ -346,9 +381,18 @@ export default function CustomerMenuApi({ slug }: { slug: string }) {
                             key={d.id}
                             dish={d}
                             baseHref={baseHref}
-                            isFav={favs.has(d.id)}
-                            onToggleFav={() => setFavs(toggleFavorite(slug, d.id))}
                             onPlay={() => openVideo(d)}
+                            onAdd={() =>
+                              cart.add(
+                                {
+                                  menuItemId: d.id,
+                                  name: d.name,
+                                  price: moneyNumber(d.price),
+                                  imageUrl: d.imageUrl ?? null,
+                                },
+                                1
+                              )
+                            }
                           />
                         ))}
                       </div>
@@ -360,6 +404,15 @@ export default function CustomerMenuApi({ slug }: { slug: string }) {
           </>
         )}
       </Container>
+
+      <CartDrawer
+        tableNumber={table || "—"}
+        lines={cart.lines}
+        total={cart.total}
+        onChangeQty={cart.setQty}
+        onSubmit={submitOrder}
+        submitting={submitting}
+      />
     </div>
   );
 }
@@ -368,14 +421,12 @@ function MenuRow({
   dish,
   baseHref,
   onPlay,
-  isFav,
-  onToggleFav,
+  onAdd,
 }: {
   dish: UiDish;
   baseHref: string;
   onPlay: () => void;
-  isFav: boolean;
-  onToggleFav: () => void;
+  onAdd: () => void;
 }) {
   const img =
     dish.imageUrl ||
@@ -392,39 +443,69 @@ function MenuRow({
         <div className="mt-0.5 text-sm text-zinc-600 max-h-[2.5rem] overflow-hidden">
           {shortText(dish.description) || " "}
         </div>
-        <div className="mt-1 text-sm font-semibold text-zinc-900">
-          {money(dish.price)}
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <div className="text-sm font-semibold text-zinc-900">{money(dish.price)}</div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAdd();
+            }}
+            className="rounded-full bg-zinc-900 text-white px-3 py-1.5 text-xs font-semibold"
+            aria-label={`Add ${dish.name} to order`}
+          >
+            Add
+          </button>
+        </div>
+
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {dish.isVeg === false ? (
+            <span className="rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 text-[11px] font-semibold">
+              Non-Veg
+            </span>
+          ) : null}
+
+          {String(dish.spice || "").toUpperCase() === "HOT" ? (
+            <span className="rounded-full bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold">
+              Spice: Hot
+            </span>
+          ) : null}
+
+          {(dish.allergens || []).some(
+            (a) =>
+              String(a).toUpperCase().includes("GLUTEN") ||
+              String(a).toUpperCase().includes("WHEAT")
+          ) ? (
+            <span className="rounded-full bg-sky-50 text-sky-800 border border-sky-200 px-2 py-0.5 text-[11px] font-semibold">
+              Gluten
+            </span>
+          ) : null}
         </div>
       </Link>
 
       <div className="relative shrink-0">
-        <Image
-          src={img}
-          alt={dish.name}
-          width={96}
-          height={96}
-          className="h-24 w-24 rounded-2xl object-cover"
-          unoptimized={process.env.NODE_ENV === "development"}
-        />
-
-        {/* Heart (favorite) */}
         <button
           type="button"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onToggleFav();
+            if (dish.videoUrl) onPlay();
+            else window.location.href = `${baseHref}/dish/${dish.id}`;
           }}
-          className={clsx(
-            "absolute top-2 right-2 h-8 w-8 rounded-full grid place-items-center shadow-soft border",
-            isFav ? "bg-white text-rose-600" : "bg-white/95 text-zinc-700"
-          )}
-          aria-label={isFav ? "Unlove dish" : "Love dish"}
+          className="block"
+          aria-label={dish.videoUrl ? `Play video for ${dish.name}` : `Open ${dish.name}`}
         >
-          <HeartIcon className="h-4 w-4" />
+          <Image
+            src={img}
+            alt={dish.name}
+            width={96}
+            height={96}
+            className="h-24 w-24 rounded-2xl object-cover"
+            unoptimized={process.env.NODE_ENV === "development"}
+          />
         </button>
 
-        {/* Play (bottom-left, doesn't hide food) */}
         <button
           type="button"
           onClick={(e) => {
@@ -448,14 +529,12 @@ function DrinkCard({
   dish,
   baseHref,
   onPlay,
-  isFav,
-  onToggleFav,
+  onAdd,
 }: {
   dish: UiDish;
   baseHref: string;
   onPlay: () => void;
-  isFav: boolean;
-  onToggleFav: () => void;
+  onAdd: () => void;
 }) {
   const img =
     dish.imageUrl ||
@@ -477,15 +556,12 @@ function DrinkCard({
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onToggleFav();
+            onAdd();
           }}
-          className={clsx(
-            "absolute top-2 right-2 h-8 w-8 rounded-full grid place-items-center shadow-soft border",
-            isFav ? "bg-white text-rose-600" : "bg-white/95 text-zinc-700"
-          )}
-          aria-label={isFav ? "Unlove dish" : "Love dish"}
+          className="absolute top-2 right-2 rounded-full bg-white/95 text-zinc-900 px-3 py-1.5 text-xs font-semibold border shadow-soft"
+          aria-label={`Add ${dish.name} to order`}
         >
-          <HeartIcon className="h-4 w-4" />
+          Add
         </button>
 
         {dish.videoUrl ? (
@@ -521,9 +597,7 @@ function DrinkCard({
         >
           {dish.name}
         </Link>
-        <div className="mt-0.5 text-sm font-semibold text-zinc-900">
-          {money(dish.price)}
-        </div>
+        <div className="mt-0.5 text-sm font-semibold text-zinc-900">{money(dish.price)}</div>
         <div className="mt-1 text-xs text-zinc-600 truncate">
           {shortText(dish.description) || " "}
         </div>

@@ -1,7 +1,17 @@
 import { apiBaseUrl } from "@/lib/env";
-import { getToken } from "@/lib/auth";
+import { clearToken, getToken, setToken } from "@/lib/auth";
 
 export type ApiError = { status: number; message: string; body?: unknown };
+
+// Compatibility exports used by lib/endpoints.ts (and any other callers).
+// Token storage is centralized in lib/auth.ts.
+export function setAccessToken(token: string) {
+  setToken(token);
+}
+
+export function clearAccessToken() {
+  clearToken();
+}
 
 async function parseBody(res: Response) {
   const text = await res.text();
