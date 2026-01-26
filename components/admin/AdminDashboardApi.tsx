@@ -25,7 +25,7 @@ function StatCard({
       ? "bg-amber-600"
       : tone === "danger"
       ? "bg-red-600"
-      : "bg-zinc-900";
+      : "bg-brand";
   return (
     <div className={clsx("rounded-3xl p-5 text-white shadow-soft", bg)}>
       <div className="text-xs font-semibold text-white/85">{title}</div>

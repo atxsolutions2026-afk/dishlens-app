@@ -1,61 +1,63 @@
+export type SpiceLevel = "NONE" | "MILD" | "MEDIUM" | "HOT" | "EXTRA_HOT";
+
+export const SPICE_LEVELS: { value: SpiceLevel; label: string }[] = [
+  { value: "NONE", label: "No spice" },
+  { value: "MILD", label: "Mild" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HOT", label: "Hot" },
+  { value: "EXTRA_HOT", label: "Extra Hot" },
+];
+
+export type LineModifiers = {
+  spiceLevel?: SpiceLevel;
+  spiceOnSide?: boolean;
+  allergensAvoid?: string[];
+  specialInstructions?: string;
+};
+
 export type CartLine = {
+  key: string;
   menuItemId: string;
   name: string;
   price: number; // dollars
   imageUrl?: string | null;
   quantity: number;
+  modifiers?: LineModifiers;
 };
 
-export type CartState = {
-  slug: string;
-  tableNumber: string;
-  lines: CartLine[];
-};
-
-export function money(v: number) {
-  const n = Number.isFinite(v) ? v : 0;
-  return `$${n.toFixed(2)}`;
+export function money(v: number | undefined) {
+  const p = Number.isFinite(v) ? (v as number) : 0;
+  return `$${p.toFixed(2)}`;
 }
 
-export function cartKey(slug: string, tableNumber: string) {
-  return `dl_cart_${slug}_${tableNumber}`;
+export function normalizeAllergens(list: unknown): string[] {
+  if (!Array.isArray(list)) return [];
+  return [...new Set(list.map((x) => String(x || "").trim().toUpperCase()).filter(Boolean))];
 }
 
-export function safeReadCart(slug: string, tableNumber: string): CartState {
-  try {
-    const raw = localStorage.getItem(cartKey(slug, tableNumber));
-    if (!raw) return { slug, tableNumber, lines: [] };
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.lines))
-      return { slug, tableNumber, lines: [] };
-    return {
-      slug,
-      tableNumber,
-      lines: parsed.lines
-        .filter((l: any) => l && typeof l.menuItemId === "string")
-        .map((l: any) => ({
-          menuItemId: String(l.menuItemId),
-          name: String(l.name ?? ""),
-          price: Number(l.price ?? 0),
-          imageUrl: l.imageUrl ?? null,
-          quantity: Math.max(1, Number(l.quantity ?? 1)),
-        })),
-    };
-  } catch {
-    return { slug, tableNumber, lines: [] };
-  }
+export function normalizeText(s: unknown): string {
+  return String(s ?? "").trim();
 }
 
-export function writeCart(state: CartState) {
-  localStorage.setItem(
-    cartKey(state.slug, state.tableNumber),
-    JSON.stringify(state),
-  );
+export function lineKey(menuItemId: string, modifiers?: LineModifiers): string {
+  const spice = modifiers?.spiceLevel ?? "";
+  const side = modifiers?.spiceOnSide ? "SIDE" : "";
+  const allergens = normalizeAllergens(modifiers?.allergensAvoid).sort().join(",");
+  const note = normalizeText(modifiers?.specialInstructions).toLowerCase();
+  return [menuItemId, spice, side, allergens, note].join("|");
 }
 
-export function calcTotal(lines: CartLine[]) {
-  return lines.reduce(
-    (sum, l) => sum + (Number(l.price) || 0) * (Number(l.quantity) || 0),
-    0,
-  );
-}
+export const COMMON_ALLERGENS = [
+  "GLUTEN",
+  "DAIRY",
+  "EGG",
+  "PEANUTS",
+  "TREE_NUTS",
+  "SOY",
+  "SESAME",
+  "FISH",
+  "SHELLFISH",
+  "ONION",
+  "GARLIC",
+  "CILANTRO",
+];

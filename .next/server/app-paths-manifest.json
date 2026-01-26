@@ -1,8 +1,8 @@
 {
-  "/r/orders/page": "app/r/orders/page.js",
-  "/m/[slug]/page": "app/m/[slug]/page.js",
+  "/r/login/page": "app/r/login/page.js",
   "/r/dashboard/page": "app/r/dashboard/page.js",
-  "/m/[slug]/dish/[id]/page": "app/m/[slug]/dish/[id]/page.js",
-  "/r/uploads/page": "app/r/uploads/page.js",
-  "/r/branding/page": "app/r/branding/page.js"
+  "/r/waiter/page": "app/r/waiter/page.js",
+  "/r/qr/page": "app/r/qr/page.js",
+  "/m/[slug]/page": "app/m/[slug]/page.js",
+  "/r/orders/page": "app/r/orders/page.js"
 }

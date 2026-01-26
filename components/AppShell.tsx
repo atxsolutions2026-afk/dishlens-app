@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { clsx } from "clsx";
 import { useEffect, useState } from "react";
 import { clearToken, getUser } from "@/lib/auth";
+import LegalFooter from "@/components/LegalFooter";
 
 // NOTE:
 // This shell is now **Restaurant Module only** (dashboard / uploads / QR).
@@ -11,7 +13,9 @@ import { clearToken, getUser } from "@/lib/auth";
 
 const tabs = [
   { href: "/r/dashboard", label: "Dashboard" },
+  { href: "/r/menu", label: "Menu" },
   { href: "/r/orders", label: "Kitchen" },
+  { href: "/r/waiter", label: "Waiter" },
   { href: "/r/uploads", label: "Uploads" },
   { href: "/r/branding", label: "Branding" },
   { href: "/r/ratings", label: "Ratings" },
@@ -42,9 +46,13 @@ export default function AppShell({
       <header className="border-b bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/55 sticky top-0 z-50">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-zinc-900 text-white grid place-items-center font-semibold shadow-soft">
-              DL
-            </div>
+            <Image
+              src="/icon/icon-192.png"
+              alt="DishLens"
+              width={40}
+              height={40}
+              className="rounded-2xl shadow-soft"
+            />
             <div>
               <div className="font-semibold leading-tight">DishLens</div>
               <div className="text-xs text-zinc-500">Responsive Web + PWA</div>
@@ -59,7 +67,7 @@ export default function AppShell({
                 className={clsx(
                   "rounded-xl px-3 py-1.5 text-xs font-medium border transition",
                   activeHref === t.href
-                    ? "bg-zinc-900 text-white border-zinc-900"
+                    ? "bg-brand text-white border-brand"
                     : "bg-white text-zinc-700 border-zinc-200 hover:border-zinc-300"
                 )}
               >
@@ -84,7 +92,7 @@ export default function AppShell({
             ) : (
               <Link
                 href="/r/login"
-                className="rounded-xl bg-zinc-900 px-3 py-1.5 font-semibold text-white"
+                className="rounded-xl bg-brand px-3 py-1.5 font-semibold text-white hover:opacity-95"
               >
                 Login
               </Link>
@@ -95,9 +103,7 @@ export default function AppShell({
 
       <main className="py-8">{children}</main>
 
-      <footer className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-10 text-xs text-zinc-500">
-        © {new Date().getFullYear()} DishLens
-      </footer>
+      <LegalFooter />
     </div>
   );
 }

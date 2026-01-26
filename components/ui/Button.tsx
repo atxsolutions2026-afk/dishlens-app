@@ -4,6 +4,6 @@ export default function Button({ children, variant = "primary", className, ...pr
   const styles =
     variant === "secondary" ? "bg-white border border-zinc-200 text-zinc-800 hover:border-zinc-300" :
     variant === "danger" ? "bg-red-600 text-white hover:bg-red-700" :
-    "bg-zinc-900 text-white hover:bg-zinc-800";
+    "bg-brand text-white hover:opacity-95";
   return <button className={clsx(base, styles, className)} {...props}>{children}</button>;
 }

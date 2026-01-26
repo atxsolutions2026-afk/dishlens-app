@@ -1,10 +1,6 @@
-import CustomerMenuApi from "@/components/customer/CustomerMenuApi";
+// app/m/[slug]/page.tsx
+import CustomerMenuModern from "@/components/customer/CustomerMenuModern";
 
-export default async function PublicMenuPage({
-  params,
-}: {
-  params: { slug: string };
-}) {
-  const { slug } = params;
-  return <CustomerMenuApi slug={slug} />;
+export default function Page({ params }: { params: { slug: string } }) {
+  return <CustomerMenuModern slug={params.slug} />;
 }

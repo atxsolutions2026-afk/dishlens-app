@@ -101,7 +101,7 @@ export default function RestaurantBrandingApi() {
                 className={
                   "rounded-xl border px-3 py-1.5 text-xs font-semibold " +
                   (kind === "LOGO"
-                    ? "bg-zinc-900 text-white border-zinc-900"
+                    ? "bg-brand text-white border-brand"
                     : "bg-white border-zinc-200")
                 }
               >
@@ -112,7 +112,7 @@ export default function RestaurantBrandingApi() {
                 className={
                   "rounded-xl border px-3 py-1.5 text-xs font-semibold " +
                   (kind === "HERO"
-                    ? "bg-zinc-900 text-white border-zinc-900"
+                    ? "bg-brand text-white border-brand"
                     : "bg-white border-zinc-200")
                 }
               >

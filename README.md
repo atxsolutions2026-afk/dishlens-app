@@ -38,3 +38,8 @@ Then open http://localhost:3001 and use Chrome “Install app”.
 - Admin login: POST /auth/login
 - Admin dashboard: GET /restaurants then GET /restaurants/{id}/menu
 - Upload media: POST /menu-items/{id}/image and /video (multipart field: file)
+
+## Documentation
+- **Developer Guide**: See `cursor-change-log/DEVELOPER_GUIDE.md` for comprehensive setup, architecture, and development instructions
+- **Naming Conventions**: See `cursor-change-log/NAMING_AND_TYPES.md` for type definitions and naming standards
+- **Change Logs**: See `cursor-change-log/` folder for cleanup phase summaries, fixes, and audit reports

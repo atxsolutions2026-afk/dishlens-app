@@ -1,28 +1,75 @@
-export type AuthUser = { id: string; email: string; name?: string; roles?: string[] };
+// lib/auth.ts
 
-const TOKEN_KEY = "dishlens_access_token";
-const USER_KEY = "dishlens_user";
+const TOKEN_KEY = "dishlens_staff_token";
+const USER_KEY = "dishlens_staff_user";
 
-export function getToken() {
+/* ===============================
+   TOKEN
+================================ */
+
+export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
+
 export function setToken(token: string) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(TOKEN_KEY, token);
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch {}
 }
+
 export function clearToken() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(TOKEN_KEY);
-  window.localStorage.removeItem(USER_KEY);
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {}
 }
-export function setUser(user: AuthUser) {
+
+/* ===============================
+   USER
+================================ */
+
+export function setUser(user: any) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+  try {
+    if (!user) {
+      localStorage.removeItem(USER_KEY);
+      return;
+    }
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch {}
 }
-export function getUser(): AuthUser | null {
+
+export function getUser<T = any>(): T | null {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(USER_KEY);
-  if (!raw) return null;
-  try { return JSON.parse(raw) as AuthUser; } catch { return null; }
+
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function clearUser() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(USER_KEY);
+  } catch {}
+}
+
+/* ===============================
+   LOGOUT HELPER (recommended)
+================================ */
+
+export function logout() {
+  clearToken();
+  clearUser();
 }

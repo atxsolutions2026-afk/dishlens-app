@@ -7,11 +7,19 @@ import Badge from "@/components/ui/Badge";
 import Link from "next/link";
 import { BackIcon } from "@/components/icons";
 import { useEffect, useMemo, useState } from "react";
-import { adminMenu, listRestaurants, uploadMenuItemImage, uploadMenuItemVideo } from "@/lib/endpoints";
+import {
+  adminMenu,
+  listRestaurants,
+  uploadMenuItemImage,
+  uploadMenuItemVideo,
+} from "@/lib/endpoints";
 import { getToken } from "@/lib/auth";
 import { normalizePublicMenu, UiDish } from "@/lib/menuAdapter";
 
 type Kind = "IMAGE" | "VIDEO";
+
+// Local UI type: UiDish plus category label for filtering + display
+type DishWithCategory = UiDish & { categoryName?: string };
 
 export default function EditDishApi() {
   const [restaurantId, setRestaurantId] = useState("");
@@ -24,14 +32,16 @@ export default function EditDishApi() {
   const [err, setErr] = useState<string | null>(null);
 
   const [restaurants, setRestaurants] = useState<any[]>([]);
-  const [menuItems, setMenuItems] = useState<UiDish[]>([]);
+  const [menuItems, setMenuItems] = useState<DishWithCategory[]>([]);
   const [itemQuery, setItemQuery] = useState("");
 
   useEffect(() => {
     (async () => {
       try {
         const rs = await listRestaurants();
-        const arr = Array.isArray(rs) ? rs : rs?.restaurants ?? rs?.data ?? [];
+        const arr = Array.isArray(rs)
+          ? rs
+          : (rs?.restaurants ?? rs?.data ?? rs?.items ?? []);
         setRestaurants(arr);
         // Auto-select first restaurant if only one exists
         if (!restaurantId && arr?.length === 1) setRestaurantId(arr[0].id);
@@ -51,9 +61,21 @@ export default function EditDishApi() {
       try {
         const payload = await adminMenu(restaurantId);
         const norm = normalizePublicMenu(payload);
-        const items: UiDish[] = [];
+
+        const items: DishWithCategory[] = [];
         for (const c of norm.categories ?? []) {
-          for (const it of c.items ?? []) items.push(it);
+          const catLabel = String(
+            (c as any)?.name ??
+              (c as any)?.categoryName ??
+              (c as any)?.title ??
+              "",
+          );
+          for (const it of (c as any)?.items ?? []) {
+            items.push({
+              ...(it as UiDish),
+              categoryName: catLabel || undefined,
+            });
+          }
         }
         setMenuItems(items);
       } catch {
@@ -65,8 +87,10 @@ export default function EditDishApi() {
   const filteredItems = useMemo(() => {
     if (!itemQuery) return menuItems;
     const q = itemQuery.toLowerCase();
-    return menuItems.filter((i) =>
-      (i.name || "").toLowerCase().includes(q) || (i.categoryName || "").toLowerCase().includes(q)
+    return menuItems.filter(
+      (i) =>
+        (i.name || "").toLowerCase().includes(q) ||
+        (i.categoryName || "").toLowerCase().includes(q),
     );
   }, [menuItems, itemQuery]);
 
@@ -81,13 +105,15 @@ export default function EditDishApi() {
     setErr(null);
 
     try {
+      if (!restaurantId) throw new Error("Restaurant is required");
       if (!menuItemId) throw new Error("Menu Item ID is required");
       if (!file) throw new Error("File is required");
 
+      // ✅ FIX: endpoints.ts expects (restaurantId, itemId, file)
       const res =
         kind === "IMAGE"
-          ? await uploadMenuItemImage(menuItemId, file)
-          : await uploadMenuItemVideo(menuItemId, file);
+          ? await uploadMenuItemImage(restaurantId, menuItemId, file)
+          : await uploadMenuItemVideo(restaurantId, menuItemId, file);
 
       console.log("Upload response:", res);
       setMsg("Uploaded successfully.");
@@ -134,7 +160,7 @@ export default function EditDishApi() {
                 className={
                   "rounded-xl border px-3 py-1.5 text-xs font-semibold " +
                   (kind === "VIDEO"
-                    ? "bg-zinc-900 text-white border-zinc-900"
+                    ? "bg-brand text-white border-brand"
                     : "bg-white border-zinc-200")
                 }
               >
@@ -145,7 +171,7 @@ export default function EditDishApi() {
                 className={
                   "rounded-xl border px-3 py-1.5 text-xs font-semibold " +
                   (kind === "IMAGE"
-                    ? "bg-zinc-900 text-white border-zinc-900"
+                    ? "bg-brand text-white border-brand"
                     : "bg-white border-zinc-200")
                 }
               >
@@ -170,7 +196,8 @@ export default function EditDishApi() {
                 <option value="">Select a restaurant…</option>
                 {restaurants.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.name}{r.city ? ` — ${r.city}` : ""}
+                    {r.name}
+                    {r.city ? ` — ${r.city}` : ""}
                   </option>
                 ))}
               </select>
@@ -194,10 +221,12 @@ export default function EditDishApi() {
                 <option value="">Select a menu item…</option>
                 {filteredItems.map((i) => (
                   <option key={i.id} value={i.id}>
-                    {i.name}{i.categoryName ? ` (${i.categoryName})` : ""}
+                    {i.name}
+                    {i.categoryName ? ` (${i.categoryName})` : ""}
                   </option>
                 ))}
               </select>
+
               <div className="text-[11px] text-zinc-500">
                 Uses{" "}
                 <code className="px-1 bg-zinc-50 border rounded">
@@ -205,8 +234,11 @@ export default function EditDishApi() {
                 </code>{" "}
                 (multipart field: <b>file</b>)
               </div>
+
               <details className="text-[11px] text-zinc-500">
-                <summary className="cursor-pointer">Advanced: enter Menu Item ID manually</summary>
+                <summary className="cursor-pointer">
+                  Advanced: enter Menu Item ID manually
+                </summary>
                 <input
                   value={menuItemId}
                   onChange={(e) => setMenuItemId(e.target.value)}
@@ -319,7 +351,8 @@ export default function EditDishApi() {
               className="min-h-[120px] rounded-2xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-200"
             />
             <div className="rounded-2xl border bg-zinc-50 p-4 text-sm text-zinc-600">
-              These fields are UI-only right now. Once you confirm the PATCH payload shape, I’ll wire it.
+              These fields are UI-only right now. Once you confirm the PATCH
+              payload shape, I’ll wire it.
             </div>
           </div>
         </Panel>

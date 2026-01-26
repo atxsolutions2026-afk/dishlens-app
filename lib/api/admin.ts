@@ -1,0 +1,371 @@
+/**
+ * Admin/Staff API endpoints
+ * These endpoints require authentication (JWT token).
+ */
+
+import { apiFetch } from "@/lib/apiFetch";
+import { apiBaseUrl } from "@/lib/env";
+import { getToken } from "@/lib/auth";
+
+const API_BASE = apiBaseUrl();
+
+/* =========================================================
+   AUTH
+========================================================= */
+
+/**
+ * Staff/admin login.
+ * Returns JWT token which should be stored via setToken().
+ */
+export async function staffLogin(email: string, password: string) {
+  return apiFetch<any>(`${API_BASE}/auth/login`, {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+/**
+ * Alias for staffLogin (backward compatibility).
+ */
+export async function login(email: string, password: string) {
+  return staffLogin(email, password);
+}
+
+/**
+ * Get current user info.
+ */
+export async function me() {
+  const token = getToken();
+  return apiFetch<any>(`${API_BASE}/users/me`, { method: "GET", token });
+}
+
+/* =========================================================
+   RESTAURANTS
+========================================================= */
+
+/**
+ * List restaurants (admin/staff only).
+ */
+export async function listRestaurants() {
+  const token = getToken();
+  return apiFetch<any>(`${API_BASE}/restaurants`, { method: "GET", token });
+}
+
+/* =========================================================
+   ORDERS (Staff/Admin)
+========================================================= */
+
+/**
+ * List orders for a restaurant (with optional status filter).
+ */
+export async function staffListOrders(
+  restaurantId: string,
+  status?: string | string[],
+) {
+  const token = getToken();
+  const statusParam = Array.isArray(status) ? status.join(",") : status;
+  const qs = statusParam ? `?status=${encodeURIComponent(statusParam)}` : "";
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/orders${qs}`,
+    {
+      method: "GET",
+      token,
+    },
+  );
+}
+
+/**
+ * List orders for a specific table.
+ */
+export async function staffListTableOrders(
+  restaurantId: string,
+  tableNumber: string,
+  activeOnly?: boolean,
+) {
+  const token = getToken();
+  const qs = activeOnly ? `?activeOnly=1` : "";
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/tables/${encodeURIComponent(tableNumber)}/orders${qs}`,
+    { method: "GET", token },
+  );
+}
+
+/**
+ * Claim an order (assign to waiter).
+ */
+export async function staffClaimOrder(restaurantId: string, orderId: string) {
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/orders/${encodeURIComponent(orderId)}/claim`,
+    {
+      method: "POST",
+      token,
+    },
+  );
+}
+
+/**
+ * Update an order (waiter/admin edits).
+ */
+export async function staffUpdateOrder(
+  restaurantId: string,
+  orderId: string,
+  body: any,
+) {
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/orders/${encodeURIComponent(orderId)}`,
+    {
+      method: "PATCH",
+      token,
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+/**
+ * List orders with optional auto-acknowledge.
+ * Used by kitchen dashboard.
+ */
+export type ListOrdersOptions =
+  | string
+  | {
+      status?: string[];
+      autoAck?: boolean;
+    };
+
+export async function listOrders(
+  restaurantId: string,
+  opts?: ListOrdersOptions,
+) {
+  const statuses =
+    typeof opts === "string"
+      ? [opts]
+      : Array.isArray(opts?.status)
+        ? opts!.status
+        : undefined;
+
+  const data = await staffListOrders(restaurantId, statuses);
+
+  // Optional: auto-ack NEW -> IN_PROGRESS on load
+  if (typeof opts === "object" && opts?.autoAck && Array.isArray(data)) {
+    const toAck = data.filter((o: any) => o?.status === "NEW" && o?.id);
+    if (toAck.length) {
+      await Promise.allSettled(
+        toAck.map((o: any) =>
+          updateOrderStatus(restaurantId, o.id, "IN_PROGRESS"),
+        ),
+      );
+      return staffListOrders(restaurantId, statuses);
+    }
+  }
+
+  return data;
+}
+
+/**
+ * Update order status.
+ */
+export async function updateOrderStatus(
+  restaurantId: string,
+  orderId: string,
+  status: string,
+) {
+  return staffUpdateOrder(restaurantId, orderId, { status });
+}
+
+/* =========================================================
+   MENU MANAGEMENT (Admin)
+========================================================= */
+
+/**
+ * Get admin menu (includes inactive items).
+ */
+export async function adminMenu(restaurantId: string) {
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/menu`,
+    {
+      method: "GET",
+      token,
+    },
+  );
+}
+
+// Categories
+export async function createMenuCategory(restaurantId: string, body: any) {
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/menu/categories`,
+    {
+      method: "POST",
+      token,
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function updateMenuCategory(
+  restaurantId: string,
+  categoryId: string,
+  body: any,
+) {
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/menu/categories/${encodeURIComponent(categoryId)}`,
+    { method: "PATCH", token, body: JSON.stringify(body) },
+  );
+}
+
+export async function deactivateMenuCategory(
+  restaurantId: string,
+  categoryId: string,
+) {
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/menu/categories/${encodeURIComponent(categoryId)}/deactivate`,
+    { method: "PATCH", token },
+  );
+}
+
+// Items
+export async function createMenuItem(restaurantId: string, body: any) {
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/menu/items`,
+    {
+      method: "POST",
+      token,
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function updateMenuItem(
+  restaurantId: string,
+  itemId: string,
+  body: any,
+) {
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/menu/items/${encodeURIComponent(itemId)}`,
+    { method: "PATCH", token, body: JSON.stringify(body) },
+  );
+}
+
+export async function deactivateMenuItem(restaurantId: string, itemId: string) {
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/menu/items/${encodeURIComponent(itemId)}/deactivate`,
+    { method: "PATCH", token },
+  );
+}
+
+/**
+ * Backward-compatibility alias.
+ */
+export async function discontinueMenuItem(restaurantId: string, itemId: string) {
+  return deactivateMenuItem(restaurantId, itemId);
+}
+
+/* =========================================================
+   UPLOADS (Admin)
+========================================================= */
+
+export async function uploadMenuItemImage(
+  restaurantId: string, // kept for backward compatibility
+  itemId: string,
+  file: File,
+) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append("file", file);
+
+  return apiFetch<any>(
+    `${API_BASE}/menu-items/${encodeURIComponent(itemId)}/image`,
+    { method: "POST", token, body: fd as any },
+  );
+}
+
+export async function uploadMenuItemVideo(
+  restaurantId: string, // kept for backward compatibility
+  itemId: string,
+  file: File,
+) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append("file", file);
+
+  return apiFetch<any>(
+    `${API_BASE}/menu-items/${encodeURIComponent(itemId)}/video`,
+    { method: "POST", token, body: fd as any },
+  );
+}
+
+export async function uploadRestaurantLogo(restaurantId: string, file: File) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append("file", file);
+
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/logo`,
+    {
+      method: "POST",
+      token,
+      body: fd as any,
+    },
+  );
+}
+
+export async function uploadRestaurantHero(restaurantId: string, file: File) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append("file", file);
+
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/hero`,
+    {
+      method: "POST",
+      token,
+      body: fd as any,
+    },
+  );
+}
+
+/* =========================================================
+   QR + RATINGS (Admin)
+========================================================= */
+
+/**
+ * Get QR token for a table (legacy signed token).
+ * For new secure QR flow, use access tokens instead.
+ */
+export async function getQrToken(restaurantId: string, tableNumber?: string) {
+  const token = getToken();
+  const qs = tableNumber ? `?table=${encodeURIComponent(tableNumber)}` : "";
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/qr-token${qs}`,
+    {
+      method: "GET",
+      token,
+    },
+  );
+}
+
+export async function restaurantRatings(restaurantId: string) {
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/ratings`,
+    {
+      method: "GET",
+      token,
+    },
+  );
+}
+
+/**
+ * Alias for restaurantRatings (backward compatibility).
+ */
+export async function restaurantRatingsSummary(restaurantId: string) {
+  return restaurantRatings(restaurantId);
+}

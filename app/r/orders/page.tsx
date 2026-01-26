@@ -14,8 +14,9 @@ type KitchenOrder = {
   totalCents: number;
   currency: string;
   createdAt: string;
-  // API returns `lines` (unitPriceCents) but older UI expected `items` (priceCents).
-  // Support both to avoid runtime errors.
+  servingWaiterUserId?: string | null;
+  lastModifiedByUserId?: string | null;
+  lastModifiedAt?: string | null;
   items?: Array<{ id: string; menuItemId: string; name: string; priceCents: number; quantity: number }>;
   lines?: Array<{ id: string; menuItemId: string; name: string; unitPriceCents: number; quantity: number }>;
 };
@@ -50,9 +51,14 @@ export default function OrdersPage() {
     setErr(null);
     setLoading(true);
     try {
-      const data = await listOrders(restaurantId);
+      // Show active kitchen workload by default. Also auto-ack NEW -> IN_PROGRESS
+      // when the kitchen dashboard loads (no extra clicks).
+      const data = await listOrders(restaurantId, {
+        status: ["NEW", "IN_PROGRESS"],
+        autoAck: true,
+      });
       const raw = (data || []) as any[];
-      const normalized: KitchenOrder[] = raw.map((o) => {
+      const normalized: KitchenOrder[] = raw.map((o: any) => {
         const items = Array.isArray(o.items)
           ? o.items
           : Array.isArray(o.lines)
@@ -64,7 +70,13 @@ export default function OrdersPage() {
                 quantity: l.quantity ?? 0,
               }))
             : [];
-        return { ...o, items };
+        return {
+          ...o,
+          items,
+          servingWaiterUserId: o.servingWaiterUserId ?? null,
+          lastModifiedByUserId: o.lastModifiedByUserId ?? null,
+          lastModifiedAt: o.lastModifiedAt ?? null,
+        };
       });
       setOrders(normalized);
     } catch (e: any) {
@@ -145,10 +157,16 @@ export default function OrdersPage() {
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="text-sm font-semibold text-zinc-900">
-                    tableNumber {o.tableNumber} · <span className="text-zinc-600">{o.status}</span>
+                    Table {o.tableNumber} · <span className="text-zinc-600">{o.status}</span>
                   </div>
                   <div className="text-xs text-zinc-500">
                     {new Date(o.createdAt).toLocaleString()}
+                    {o.servingWaiterUserId && (
+                      <> · Serving: {String(o.servingWaiterUserId).slice(0, 8)}…</>
+                    )}
+                    {o.lastModifiedByUserId && (
+                      <> · Edited: {String(o.lastModifiedByUserId).slice(0, 8)}…</>
+                    )}
                   </div>
                 </div>
                 <div className="text-sm font-semibold">

@@ -4,9 +4,13 @@ import Container from "@/components/layout/Container";
 import Panel from "@/components/layout/Panel";
 import Button from "@/components/ui/Button";
 import { useEffect, useMemo, useState } from "react";
-import { adminMenu, listRestaurants, restaurantRatingsSummary } from "@/lib/endpoints";
+import {
+  adminMenu,
+  listRestaurants,
+  restaurantRatingsSummary,
+} from "@/lib/endpoints";
 import { getToken } from "@/lib/auth";
-import { normalizePublicMenu, UiDish } from "@/lib/menuAdapter";
+import { normalizePublicMenu } from "@/lib/menuAdapter";
 
 type Row = {
   id: string;
@@ -15,6 +19,12 @@ type Row = {
   avgRating?: number;
   ratingCount?: number;
 };
+
+function toNumberOrUndef(v: any): number | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
 
 export default function AdminRatingsApi() {
   const [loading, setLoading] = useState(true);
@@ -35,7 +45,9 @@ export default function AdminRatingsApi() {
       setErr(null);
       try {
         const list = await listRestaurants();
-        const arr = Array.isArray(list) ? list : list?.items ?? list?.data ?? [];
+        const arr = Array.isArray(list)
+          ? list
+          : (list?.items ?? list?.data ?? []);
         setRestaurants(arr);
         if (arr?.[0]?.id) setRestaurantId(arr[0].id);
       } catch (e: any) {
@@ -51,20 +63,35 @@ export default function AdminRatingsApi() {
       if (!restaurantId) return;
       setLoading(true);
       setErr(null);
+
       try {
         // Prefer the explicit ratings summary endpoint (if backend implements it)
         try {
           const summary = await restaurantRatingsSummary(restaurantId);
           const items = summary?.items ?? summary?.data ?? summary ?? [];
+
           if (Array.isArray(items) && items.length) {
             setRows(
-              items.map((i: any) => ({
-                id: String(i?.id ?? i?.menuItemId ?? ""),
-                name: String(i?.name ?? ""),
-                category: String(i?.categoryName ?? i?.category ?? ""),
-                avgRating: typeof i?.avgRating === "number" ? i.avgRating : i?.ratingAvg,
-                ratingCount: typeof i?.ratingCount === "number" ? i.ratingCount : i?.ratingsCount
-              }))
+              items.map((i: any) => {
+                const avg =
+                  typeof i?.avgRating === "number"
+                    ? i.avgRating
+                    : toNumberOrUndef(i?.ratingAvg);
+
+                const cnt =
+                  typeof i?.ratingCount === "number"
+                    ? i.ratingCount
+                    : toNumberOrUndef(i?.ratingsCount);
+
+                return {
+                  id: String(i?.id ?? i?.menuItemId ?? ""),
+                  name: String(i?.name ?? ""),
+                  category:
+                    String(i?.categoryName ?? i?.category ?? "") || undefined,
+                  avgRating: avg ?? undefined,
+                  ratingCount: cnt ?? undefined,
+                } as Row;
+              }),
             );
             setLoading(false);
             return;
@@ -73,19 +100,27 @@ export default function AdminRatingsApi() {
           // ignore and fall back to menu endpoint
         }
 
-        // Fallback: use adminMenu and rely on avgRating/ratingCount being included per item
+        // Fallback: use adminMenu and rely on avgRating/ratingCount per item.
+        // ✅ Type-safe: pull category label from the category loop, not d.categoryName
         const menu = await adminMenu(restaurantId);
         const norm = normalizePublicMenu(menu);
-        const all: UiDish[] = norm.categories.flatMap((c) => c.items);
-        setRows(
-          all.map((d) => ({
-            id: d.id,
-            name: d.name,
-            category: d.categoryName,
-            avgRating: d.avgRating,
-            ratingCount: d.ratingCount
-          }))
-        );
+
+        const fallbackRows: Row[] = norm.categories.flatMap((c: any) => {
+          const categoryLabel =
+            String(c?.name ?? c?.categoryName ?? c?.title ?? "") || undefined;
+
+          const items = Array.isArray(c?.items) ? c.items : [];
+          return items.map((d: any) => ({
+            id: String(d?.id ?? ""),
+            name: String(d?.name ?? ""),
+            category: categoryLabel,
+            // ratings might be null -> convert to undefined
+            avgRating: d?.avgRating ?? undefined,
+            ratingCount: d?.ratingCount ?? undefined,
+          }));
+        });
+
+        setRows(fallbackRows);
       } catch (e: any) {
         setErr(e?.message ?? "Failed to load ratings");
         setRows([]);
@@ -99,9 +134,17 @@ export default function AdminRatingsApi() {
     const q = query.trim().toLowerCase();
     const base = rows
       .slice()
-      .sort((a, b) => (b.avgRating ?? 0) - (a.avgRating ?? 0) || (b.ratingCount ?? 0) - (a.ratingCount ?? 0));
+      .sort(
+        (a, b) =>
+          (b.avgRating ?? 0) - (a.avgRating ?? 0) ||
+          (b.ratingCount ?? 0) - (a.ratingCount ?? 0),
+      );
     if (!q) return base;
-    return base.filter((r) => r.name.toLowerCase().includes(q) || (r.category || "").toLowerCase().includes(q));
+    return base.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        (r.category || "").toLowerCase().includes(q),
+    );
   }, [rows, query]);
 
   return (
@@ -115,13 +158,20 @@ export default function AdminRatingsApi() {
         </div>
 
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => (window.location.href = "/r/uploads")}>
+          <Button
+            variant="secondary"
+            onClick={() => (window.location.href = "/r/uploads")}
+          >
             Upload Media
           </Button>
         </div>
       </div>
 
-      {err && <Panel className="p-4 border-red-200 bg-red-50 text-sm text-red-800">{err}</Panel>}
+      {err && (
+        <Panel className="p-4 border-red-200 bg-red-50 text-sm text-red-800">
+          {err}
+        </Panel>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Panel className="p-5 lg:col-span-1">
@@ -134,7 +184,8 @@ export default function AdminRatingsApi() {
             <option value="">Select a restaurant…</option>
             {restaurants.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}{r.city ? ` — ${r.city}` : ""}
+                {r.name}
+                {r.city ? ` — ${r.city}` : ""}
               </option>
             ))}
           </select>
@@ -150,10 +201,14 @@ export default function AdminRatingsApi() {
           <div className="mt-4 rounded-2xl border bg-zinc-50 p-4 text-xs text-zinc-600">
             If ratings are empty, wire backend endpoints:
             <div className="mt-2">
-              <code className="px-1 bg-white border rounded">POST /public/menu-items/:id/rating</code>
+              <code className="px-1 bg-white border rounded">
+                POST /public/menu-items/:id/rating
+              </code>
             </div>
             <div className="mt-1">
-              <code className="px-1 bg-white border rounded">GET /restaurants/:id/ratings</code>
+              <code className="px-1 bg-white border rounded">
+                GET /restaurants/:id/ratings
+              </code>
             </div>
           </div>
         </Panel>
@@ -180,14 +235,25 @@ export default function AdminRatingsApi() {
                 <tbody>
                   {filtered.map((r) => (
                     <tr key={r.id} className="border-t">
-                      <td className="py-2 pr-2 font-semibold text-zinc-900">{r.name}</td>
-                      <td className="py-2 pr-2 text-zinc-600">{r.category || "—"}</td>
-                      <td className="py-2 pr-2 text-zinc-900">
-                        {typeof r.avgRating === "number" ? (Math.round(r.avgRating * 10) / 10).toFixed(1) : "—"}
+                      <td className="py-2 pr-2 font-semibold text-zinc-900">
+                        {r.name}
                       </td>
-                      <td className="py-2 text-zinc-900">{typeof r.ratingCount === "number" ? r.ratingCount : "—"}</td>
+                      <td className="py-2 pr-2 text-zinc-600">
+                        {r.category || "—"}
+                      </td>
+                      <td className="py-2 pr-2 text-zinc-900">
+                        {typeof r.avgRating === "number"
+                          ? (Math.round(r.avgRating * 10) / 10).toFixed(1)
+                          : "—"}
+                      </td>
+                      <td className="py-2 text-zinc-900">
+                        {typeof r.ratingCount === "number"
+                          ? r.ratingCount
+                          : "—"}
+                      </td>
                     </tr>
                   ))}
+
                   {filtered.length === 0 ? (
                     <tr>
                       <td className="py-6 text-zinc-600" colSpan={4}>

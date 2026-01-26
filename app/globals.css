@@ -7,3 +7,9 @@ body { @apply bg-white text-zinc-900; }
 /* Hide scrollbars for horizontal tab bars (mobile) */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+:root{
+  --brand: #111827;        /* default neutral (zinc-ish) */
+  --brand-soft: #f4f4f5;
+  --brand-accent: #f59e0b;
+}
+
