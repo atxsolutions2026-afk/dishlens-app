@@ -3,7 +3,8 @@
 import DishPreview from "@/components/customer/DishPreview";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { createPublicOrder, orderLinesFromCart, publicMenu } from "@/lib/endpoints";
+import { createPublicOrder, orderLinesFromCart, publicMenu, getPublicOrder } from "@/lib/endpoints";
+import { useRouter } from "next/navigation";
 import { normalizePublicMenu, UiDish } from "@/lib/menuAdapter";
 import { resolveTableSession, getDeviceIdForOrders } from "@/lib/table";
 import { useCart } from "@/lib/useCart";
@@ -18,6 +19,7 @@ export default function CustomerDishDetailApi({
   slug: string;
   dishId: string;
 }) {
+  const router = useRouter();
   const [dish, setDish] = useState<UiDish | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const searchParams = useSearchParams();
@@ -81,14 +83,24 @@ export default function CustomerDishDetailApi({
 
     try {
       setSubmitting(true);
-      await createPublicOrder(slug, {
+      const result = await createPublicOrder(slug, {
         tableSessionId,
         sessionSecret,
         deviceId: getDeviceIdForOrders(),
         lines: orderLinesFromCart(cart.lines),
       });
       cart.clear();
-      window.alert("Order submitted! The restaurant will see it on the kitchen dashboard.");
+      // Navigate to order status page
+      if (result?.id && result?.orderToken) {
+        const params = new URLSearchParams({
+          orderId: result.id,
+          token: result.orderToken,
+        });
+        if (tableSessionId) params.set("tableSessionId", tableSessionId);
+        router.push(`/m/${slug}/order-status?${params.toString()}`);
+      } else {
+        window.alert("Order submitted! The restaurant will see it on the kitchen dashboard.");
+      }
     } catch (e: any) {
       const msg = e?.message ?? "Failed to submit order";
       if (msg.includes("expired") || msg.includes("Invalid session")) {

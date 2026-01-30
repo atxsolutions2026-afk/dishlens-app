@@ -23,7 +23,19 @@ export default function LoginClient() {
       const res = await login(email, password);
       setToken(res.accessToken);
       setUser(res.user);
-      const next = searchParams?.get("next") || "/r/dashboard";
+      
+      // Redirect based on role
+      const userRoles = res.user?.roles || [];
+      const isWaiter = userRoles.includes("WAITER");
+      const isAdmin = userRoles.includes("RESTAURANT_OWNER") || 
+                      userRoles.includes("ATX_ADMIN") ||
+                      userRoles.includes("SUPER_ADMIN");
+      
+      let next = searchParams?.get("next");
+      if (!next) {
+        next = isWaiter ? "/r/waiter" : "/r/dashboard";
+      }
+      
       window.location.href = next;
     } catch (e: any) {
       setErr(e?.message ?? "Login failed");

@@ -1,36 +1,5 @@
 {
   "pages": {
-    "/r/login/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/r/login/page.js"
-    ],
-    "/r/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/r/layout.js"
-    ],
-    "/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/css/app/layout.css",
-      "static/chunks/app/layout.js"
-    ],
-    "/r/dashboard/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/r/dashboard/page.js"
-    ],
-    "/r/waiter/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/r/waiter/page.js"
-    ],
-    "/r/qr/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/r/qr/page.js"
-    ],
     "/m/[slug]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -41,10 +10,51 @@
       "static/chunks/main-app.js",
       "static/chunks/app/m/layout.js"
     ],
-    "/r/orders/page": [
+    "/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/r/orders/page.js"
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
+    ],
+    "/r/tables/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/tables/page.js"
+    ],
+    "/r/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/layout.js"
+    ],
+    "/r/qr/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/qr/page.js"
+    ],
+    "/m/[slug]/order-status/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/m/[slug]/order-status/page.js"
+    ],
+    "/r/uploads/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/uploads/page.js"
+    ],
+    "/r/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/login/page.js"
+    ],
+    "/r/dashboard/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/dashboard/page.js"
+    ],
+    "/m/[slug]/dish/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/m/[slug]/dish/[id]/page.js"
     ]
   }
 }

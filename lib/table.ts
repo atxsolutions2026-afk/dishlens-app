@@ -5,6 +5,7 @@ import type { TableSession } from "@/lib/types";
 const API_BASE = apiBaseUrl();
 
 const PERSIST_KEY = (slug: string) => `dishlens_table_session:${slug}`;
+const ORDER_TRACKING_KEY = (slug: string) => `dishlens_order_tracking:${slug}`;
 
 function getDeviceId(): string {
   if (typeof window === "undefined") return "dev";
@@ -135,6 +136,45 @@ export async function startGuestTableSession(
 
 export function getDeviceIdForOrders(): string {
   return getDeviceId();
+}
+
+/**
+ * Persist order tracking info (orderId + orderToken) for a restaurant
+ */
+export function persistOrderTracking(slug: string, orderId: string, orderToken: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      ORDER_TRACKING_KEY(slug),
+      JSON.stringify({ orderId, orderToken }),
+    );
+  } catch {}
+}
+
+/**
+ * Load persisted order tracking info
+ */
+export function loadOrderTracking(slug: string): { orderId: string; orderToken: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ORDER_TRACKING_KEY(slug));
+    if (!raw) return null;
+    const p = JSON.parse(raw) as { orderId?: string; orderToken?: string };
+    if (!p?.orderId || !p?.orderToken) return null;
+    return { orderId: p.orderId, orderToken: p.orderToken };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clear persisted order tracking info
+ */
+export function clearOrderTracking(slug: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(ORDER_TRACKING_KEY(slug));
+  } catch {}
 }
 
 export type ResolveTableSessionParams = { get: (k: string) => string | null };

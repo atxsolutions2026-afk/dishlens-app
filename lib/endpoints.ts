@@ -12,6 +12,10 @@ export {
   publicMenu,
   createPublicOrder,
   getPublicOrder,
+  getTableOrders,
+  getCurrentWaiterCall,
+  callWaiter,
+  getTableService,
   rateMenuItem,
   orderLinesFromCart,
   type CreatePublicOrderPayload,
@@ -46,3 +50,18 @@ export {
   restaurantRatings,
   restaurantRatingsSummary,
 } from "./api/admin";
+
+// Kitchen endpoints
+export {
+  getKitchenOrders,
+  markOrderReady,
+} from "./api/kitchen";
+
+// Waiter endpoints (additional)
+export {
+  getReadyOrders,
+  markOrderServing,
+  markOrderServed,
+  createWaiterOrder,
+  closeWaiterCall,
+} from "./api/waiter";

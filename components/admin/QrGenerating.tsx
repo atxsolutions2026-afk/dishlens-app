@@ -5,6 +5,7 @@ import Panel from "@/components/layout/Panel";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import { getQrToken, listRestaurants } from "@/lib/endpoints";
+import { listTables, type RestaurantTable } from "@/lib/api/admin";
 import { getToken } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
 
@@ -56,6 +57,8 @@ export default function QrGenerating() {
   const [slug, setSlug] = useState<string>("");
   const [tableNumber, setTableNumber] = useState<string>("1");
   const [url, setUrl] = useState<string>("");
+  const [tables, setTables] = useState<RestaurantTable[]>([]);
+  const [loadingTables, setLoadingTables] = useState(false);
 
   const [busy, setBusy] = useState(false);
 
@@ -83,6 +86,45 @@ export default function QrGenerating() {
       }
     })();
   }, []);
+
+  // Load tables when restaurantId is available
+  useEffect(() => {
+    if (!restaurantId) return;
+    
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoadingTables(true);
+        const tablesList = await listTables(restaurantId, false); // Only active tables
+        if (!cancelled) {
+          setTables(tablesList);
+          // Set default table number to first table if available and no table is selected
+          if (tablesList.length > 0) {
+            setTableNumber((prev) => {
+              // Only update if current value is empty or default "1"
+              if (!prev || prev === "1") {
+                return tablesList[0].tableNumber;
+              }
+              return prev;
+            });
+          }
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          console.warn("Could not load tables:", e?.message);
+          setTables([]); // Clear tables on error
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingTables(false);
+        }
+      }
+    })();
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [restaurantId]);
 
   const customerUrl = useMemo(() => {
     if (!slug) return "";
@@ -197,14 +239,35 @@ export default function QrGenerating() {
               <label className="text-[11px] font-semibold text-zinc-500">
                 Table number
               </label>
-              <input
-                value={tableNumber}
-                onChange={(e) => setTableNumber(e.target.value)}
-                placeholder="1"
-                className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-zinc-200"
-              />
+              {tables.length > 0 ? (
+                <select
+                  value={tableNumber}
+                  onChange={(e) => setTableNumber(e.target.value)}
+                  className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-zinc-200 bg-white"
+                  disabled={loadingTables}
+                >
+                  {tables.map((table) => (
+                    <option key={table.id} value={table.tableNumber}>
+                      {table.displayName || table.tableNumber}
+                      {table.seats ? ` (${table.seats} seats)` : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={tableNumber}
+                  onChange={(e) => setTableNumber(e.target.value)}
+                  placeholder="1"
+                  className="mt-1 w-full rounded-2xl border px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-zinc-200"
+                  disabled={loadingTables}
+                />
+              )}
               <div className="mt-1 text-[11px] text-zinc-500">
-                Each table should have its own QR.
+                {loadingTables
+                  ? "Loading tables..."
+                  : tables.length > 0
+                    ? "Select a table from your restaurant"
+                    : "Each table should have its own QR. Enter table number manually if tables are not configured."}
               </div>
             </div>
           </div>

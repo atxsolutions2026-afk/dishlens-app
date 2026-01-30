@@ -7,6 +7,9 @@ body { @apply bg-white text-zinc-900; }
 /* Hide scrollbars for horizontal tab bars (mobile) */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Safe area for notched phones (bottom nav, cart bar) */
+.safe-area-pb { padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px)); }
 :root{
   --brand: #111827;        /* default neutral (zinc-ish) */
   --brand-soft: #f4f4f5;

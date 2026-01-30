@@ -59,6 +59,90 @@ export async function getPublicOrder(
 }
 
 /**
+ * Call waiter (customer at table).
+ * Requires tableSessionId + sessionSecret. Rate limited: 3 calls per 10 min per session.
+ */
+export async function callWaiter(payload: {
+  tableSessionId: string;
+  sessionSecret: string;
+  deviceId?: string;
+  note?: string;
+}) {
+  return apiFetch<{ id: string; tableId: string; tableNumber?: string; status: string; requestedAt: string }>(
+    `${API_BASE}/public/waiter-calls`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+/**
+ * Get orders for a table session (customer view).
+ */
+export async function getTableOrders(
+  slug: string,
+  tableSessionId: string,
+  token?: string | null,
+) {
+  const qs = token ? `?token=${encodeURIComponent(token)}` : "";
+  return apiFetch<any[]>(
+    `${API_BASE}/public/restaurants/${encodeURIComponent(slug)}/table/${encodeURIComponent(tableSessionId)}/orders${qs}`,
+    { method: "GET" },
+  );
+}
+
+/**
+ * Get current waiter call status for table session.
+ */
+export async function getCurrentWaiterCall(
+  slug: string,
+  tableSessionId: string,
+  token: string,
+) {
+  const qs = new URLSearchParams({
+    tableSessionId,
+    token,
+  }).toString();
+  return apiFetch<{
+    status: string | null;
+    call: {
+      id: string;
+      status: string;
+      requestedAt: string;
+      acceptedAt?: string | null;
+      closedAt?: string | null;
+      acceptedBy: { userId: string; name: string } | null;
+    } | null;
+  }>(`${API_BASE}/public/restaurants/${encodeURIComponent(slug)}/waiter-calls/current?${qs}`, {
+    method: "GET",
+  });
+}
+
+/**
+ * Get current servicing waiter and active call status for a table session.
+ * Poll after "Call waiter" to see when a waiter accepts and is on the way.
+ */
+export async function getTableService(
+  tableSessionId: string,
+  sessionSecret: string,
+) {
+  const qs = new URLSearchParams({
+    tableSessionId,
+    sessionSecret,
+  }).toString();
+  return apiFetch<{
+    waiter: { userId: string; name: string; photoUrl?: string | null; assignedAt: string } | null;
+    tableNumber: string;
+    activeCall?: {
+      callId: string;
+      status: string;
+      acceptedBy: { userId: string; name: string; photoUrl?: string | null } | null;
+    } | null;
+  }>(`${API_BASE}/public/table-service?${qs}`, { method: "GET" });
+}
+
+/**
  * Rate a menu item (public, no auth required).
  */
 export async function rateMenuItem(

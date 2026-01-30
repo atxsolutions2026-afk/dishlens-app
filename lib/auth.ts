@@ -2,6 +2,8 @@
 
 const TOKEN_KEY = "dishlens_staff_token";
 const USER_KEY = "dishlens_staff_user";
+/** Cookie name must match middleware (middleware.ts) so /r/* protection sees the token on full-page load */
+const TOKEN_COOKIE = "dishlens_access_token";
 
 /* ===============================
    TOKEN
@@ -20,6 +22,8 @@ export function setToken(token: string) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(TOKEN_KEY, token);
+    // Set cookie so middleware allows /r/dashboard etc. on the next full-page load (after login redirect)
+    document.cookie = `${TOKEN_COOKIE}=${encodeURIComponent(token)}; path=/; max-age=86400*7; SameSite=Lax`;
   } catch {}
 }
 
@@ -27,6 +31,7 @@ export function clearToken() {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(TOKEN_KEY);
+    document.cookie = `${TOKEN_COOKIE}=; path=/; max-age=0`;
   } catch {}
 }
 

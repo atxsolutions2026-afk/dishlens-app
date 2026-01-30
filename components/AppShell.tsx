@@ -16,6 +16,8 @@ const tabs = [
   { href: "/r/menu", label: "Menu" },
   { href: "/r/orders", label: "Kitchen" },
   { href: "/r/waiter", label: "Waiter" },
+  { href: "/r/waiters", label: "Waiters" },
+  { href: "/r/tables", label: "Tables" },
   { href: "/r/uploads", label: "Uploads" },
   { href: "/r/branding", label: "Branding" },
   { href: "/r/ratings", label: "Ratings" },
@@ -30,16 +32,28 @@ export default function AppShell({
   activeHref?: string;
 }) {
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userRoles, setUserRoles] = useState<string[]>([]);
 
   useEffect(() => {
     const u = getUser();
     setUserEmail(u?.email ?? null);
+    setUserRoles(u?.roles || []);
   }, []);
 
   function logout() {
     clearToken();
     window.location.href = "/r/login";
   }
+
+  // Filter tabs based on user role
+  const isWaiter = userRoles.includes("WAITER");
+  const isAdmin = userRoles.includes("RESTAURANT_OWNER") || 
+                  userRoles.includes("ATX_ADMIN") ||
+                  userRoles.includes("SUPER_ADMIN");
+  
+  const visibleTabs = isWaiter && !isAdmin
+    ? tabs.filter((t) => t.href === "/r/waiter") // Waiters only see waiter tab
+    : tabs; // Admins see all tabs
 
   return (
     <div className="min-h-screen bg-white">
@@ -55,12 +69,14 @@ export default function AppShell({
             />
             <div>
               <div className="font-semibold leading-tight">DishLens</div>
-              <div className="text-xs text-zinc-500">Responsive Web + PWA</div>
+              <div className="text-xs text-zinc-500">
+                {isWaiter && !isAdmin ? "Waiter Dashboard" : "Responsive Web + PWA"}
+              </div>
             </div>
           </div>
 
           <nav className="flex flex-wrap gap-2">
-            {tabs.map((t) => (
+            {visibleTabs.map((t) => (
               <Link
                 key={t.href}
                 href={t.href}

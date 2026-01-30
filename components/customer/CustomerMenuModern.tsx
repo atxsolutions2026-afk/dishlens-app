@@ -16,35 +16,24 @@ import {
   createPublicOrder,
   orderLinesFromCart,
   publicMenu,
+  callWaiter,
+  getTableService,
+  getPublicOrder,
+  getTableOrders,
 } from "@/lib/endpoints";
+import OrderStatusButton from "@/components/customer/OrderStatusButton";
 import { normalizePublicMenu, UiCategory, UiDish } from "@/lib/menuAdapter";
 import {
   resolveTableSession,
   getDeviceIdForOrders,
+  persistOrderTracking,
+  loadOrderTracking,
 } from "@/lib/table";
 import { useCart } from "@/lib/useCart";
 import { CartLine, LineModifiers } from "@/lib/cart";
 
 import BrandTheme from "@/components/brand/BrandTheme";
 import RestaurantHeroCollapsible from "@/components/customer/RestaurantHeroCollapsible";
-
-import { apiFetch } from "@/lib/apiFetch";
-import { apiBaseUrl } from "@/lib/env";
-import { getToken } from "@/lib/auth";
-
-const API_BASE = apiBaseUrl();
-
-type RestaurantDetail = {
-  id: string;
-  name: string;
-  slug: string;
-  heroImageUrl?: string | null;
-  logoUrl?: string | null;
-  city?: string | null;
-  state?: string | null;
-  phone?: string | null;
-  website?: string | null;
-};
 
 function isDrinksCategory(name: string) {
   const n = name.toLowerCase();
@@ -87,37 +76,6 @@ function spiceBadge(spice?: string) {
   if (s === "MEDIUM") return "Medium";
   if (s === "MILD") return "Mild";
   return "";
-}
-
-async function fetchRestaurantById(id: string): Promise<RestaurantDetail> {
-  const token = await getToken();
-  return apiFetch<RestaurantDetail>(
-    `${API_BASE}/restaurants/${encodeURIComponent(id)}`,
-    {
-      method: "GET",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    },
-  );
-}
-
-// Optional helper if you have this endpoint on your API (highly recommended)
-// GET /restaurants/slug/:slug  (or similar)
-async function fetchRestaurantBySlug(
-  slug: string,
-): Promise<RestaurantDetail | null> {
-  try {
-    const token = await getToken();
-    // change this path if your API uses a different route for slug lookup
-    return await apiFetch<RestaurantDetail>(
-      `${API_BASE}/restaurants/slug/${encodeURIComponent(slug)}`,
-      {
-        method: "GET",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      },
-    );
-  } catch {
-    return null;
-  }
 }
 
 function QuickViewModal({
@@ -300,6 +258,70 @@ export default function CustomerMenuModern({ slug }: { slug: string }) {
   >(null);
 
   const [submitting, setSubmitting] = useState(false);
+  const [callingWaiter, setCallingWaiter] = useState(false);
+  const [waiterCalledAt, setWaiterCalledAt] = useState<number | null>(null);
+  const [waiterJustNotified, setWaiterJustNotified] = useState(false);
+  const [acceptedWaiterName, setAcceptedWaiterName] = useState<string | null>(null);
+  const [acceptedWaiterPhotoUrl, setAcceptedWaiterPhotoUrl] = useState<string | null>(null);
+  const [, setCooldownTick] = useState(0);
+  const [mounted, setMounted] = useState(false);
+  // Initialize order tracking from localStorage after mount to avoid hydration mismatch
+  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
+  const [trackingOrderToken, setTrackingOrderToken] = useState<string | null>(null);
+
+  // Load persisted order tracking after mount (client-side only)
+  useEffect(() => {
+    setMounted(true);
+    const persisted = loadOrderTracking(slug);
+    if (persisted?.orderId && persisted?.orderToken) {
+      setTrackingOrderId(persisted.orderId);
+      setTrackingOrderToken(persisted.orderToken);
+    }
+  }, [slug]);
+
+  const callWaiterCooldownMs = 2 * 60 * 1000; // 2 min
+  const canCallWaiter = waiterCalledAt == null || Date.now() - waiterCalledAt >= callWaiterCooldownMs;
+  const callWaiterCooldownRemaining = waiterCalledAt != null && !canCallWaiter
+    ? Math.max(0, Math.ceil((callWaiterCooldownMs - (Date.now() - waiterCalledAt)) / 1000))
+    : 0;
+
+  useEffect(() => {
+    if (!canCallWaiter || callWaiterCooldownRemaining <= 0) return;
+    const id = setInterval(() => setCooldownTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [canCallWaiter, callWaiterCooldownRemaining, waiterCalledAt]);
+
+  useEffect(() => {
+    if (!waiterJustNotified) return;
+    const id = setTimeout(() => setWaiterJustNotified(false), 3000);
+    return () => clearTimeout(id);
+  }, [waiterJustNotified]);
+
+  // Poll table-service after calling waiter to show "Name is on the way" when someone accepts
+  useEffect(() => {
+    if (!tableSessionId || !sessionSecret || !waiterCalledAt) return;
+    const pollMs = 2500;
+    const stopAfterMs = 2 * 60 * 1000; // 2 min
+    const start = Date.now();
+    const t = setInterval(async () => {
+      if (Date.now() - start > stopAfterMs) {
+        clearInterval(t);
+        return;
+      }
+      try {
+        const res = await getTableService(tableSessionId, sessionSecret);
+        const by = res?.activeCall?.acceptedBy;
+        if (by?.name) {
+          setAcceptedWaiterName(by.name);
+          setAcceptedWaiterPhotoUrl(by.photoUrl ?? null);
+          clearInterval(t);
+        }
+      } catch {
+        /* ignore */
+      }
+    }, pollMs);
+    return () => clearInterval(t);
+  }, [tableSessionId, sessionSecret, waiterCalledAt]);
 
   // Resolve table session: ?t= (QR), ?table= (guest), or persisted/default. Persist for cart + orders.
   useEffect(() => {
@@ -337,6 +359,73 @@ export default function CustomerMenuModern({ slug }: { slug: string }) {
     };
   }, [slug, searchParams]);
 
+  // Load persisted order tracking immediately on mount and when page becomes visible
+  // This ensures the button shows up immediately when navigating back
+  useEffect(() => {
+    if (!slug) return;
+    
+    const loadPersisted = () => {
+      const persistedOrder = loadOrderTracking(slug);
+      if (persistedOrder && persistedOrder.orderId && persistedOrder.orderToken) {
+        console.log("[OrderTracking] Loaded from localStorage:", persistedOrder.orderId);
+        setTrackingOrderId(persistedOrder.orderId);
+        setTrackingOrderToken(persistedOrder.orderToken);
+      } else {
+        console.log("[OrderTracking] No persisted order found for slug:", slug);
+      }
+    };
+    
+    // Load immediately
+    loadPersisted();
+    
+    // Also reload when window gains focus (user navigates back to tab)
+    const handleFocus = () => {
+      loadPersisted();
+    };
+    
+    window.addEventListener("focus", handleFocus);
+    
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [slug]);
+
+  // Load existing orders from API when table session is available (more up-to-date)
+  useEffect(() => {
+    if (!slug || !tableSessionId || !sessionSecret) return;
+    
+    let cancelled = false;
+    const loadOrders = async () => {
+      try {
+        const orders = await getTableOrders(slug, tableSessionId, sessionSecret);
+        // Find the most recent order (include SERVED but exclude CANCELLED)
+        // SERVED orders are shown for a while so users can see completion status
+        const activeOrder = orders
+          .filter((o: any) => o.status !== "CANCELLED")
+          .sort((a: any, b: any) => 
+            new Date(b.createdAt || b.placedAt || 0).getTime() - 
+            new Date(a.createdAt || a.placedAt || 0).getTime()
+          )[0];
+        
+        if (!cancelled && activeOrder && activeOrder.orderToken) {
+          // Update state and localStorage with the order from API
+          setTrackingOrderId(activeOrder.id);
+          setTrackingOrderToken(activeOrder.orderToken);
+          persistOrderTracking(slug, activeOrder.id, activeOrder.orderToken);
+        }
+      } catch (e: any) {
+        // Silently fail - order might not exist yet or token might be required
+        // Keep the persisted order tracking if API call fails
+        console.debug("No active orders found:", e?.message);
+      }
+    };
+    
+    loadOrders();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, tableSessionId, sessionSecret]);
+
   const cart = useCart(slug, tableSessionId || "");
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
@@ -362,34 +451,19 @@ export default function CustomerMenuModern({ slug }: { slug: string }) {
         setCategories(norm.categories);
         setActiveTab(norm.categories?.[0]?.name || "Menu");
 
-        // keep as fallback
-        const fallbackHero = restaurant?.heroImageUrl || "";
-        const fallbackLogo = restaurant?.logoUrl || "";
-
-        // restaurantId if exposed by menu payload (recommended)
+        // Use only public menu data — do not call GET /restaurants/:id (requires auth, causes 401 for customers)
         const anyPayload: any = payload as any;
         const rid =
           anyPayload?.restaurantId ||
           anyPayload?.restaurant?.id ||
           (anyPayload?.restaurant && anyPayload.restaurant.id) ||
           "";
-
         if (rid) setRestaurantId(String(rid));
 
-        // 2) Prefer real restaurant record (your /restaurants/{id} response)
-        let detail: RestaurantDetail | null = null;
-
-        if (rid) {
-          detail = await fetchRestaurantById(String(rid));
-        } else {
-          // try slug lookup if your API supports it
-          detail = await fetchRestaurantBySlug(slug);
-        }
-
-        const hero = detail?.heroImageUrl || fallbackHero;
-        const logo = detail?.logoUrl || fallbackLogo;
-        setRestaurantHeroUrl(hero || "");
-        setRestaurantLogoUrl(logo || "");
+        const hero = restaurant?.heroImageUrl || "";
+        const logo = restaurant?.logoUrl || "";
+        setRestaurantHeroUrl(hero);
+        setRestaurantLogoUrl(logo);
 
         // If you later add theme fields on restaurant, set them here:
         // setBrandColor(detail?.brandColor ?? "#111827") etc.
@@ -537,6 +611,34 @@ export default function CustomerMenuModern({ slug }: { slug: string }) {
     setCustomizeTarget(null);
   };
 
+  const onCallWaiter = async () => {
+    if (callingWaiter || !canCallWaiter) return;
+    if (!tableSessionId || !sessionSecret) {
+      window.alert("Missing table session. Refresh the page or use ?table=1 or scan the QR.");
+      return;
+    }
+    setAcceptedWaiterName(null);
+    try {
+      setCallingWaiter(true);
+      await callWaiter({
+        tableSessionId,
+        sessionSecret,
+        deviceId: getDeviceIdForOrders(),
+      });
+      setWaiterCalledAt(Date.now());
+      setWaiterJustNotified(true);
+    } catch (e: any) {
+      const msg = e?.message ?? "Failed to call waiter";
+      if (msg.toLowerCase().includes("rate limit")) {
+        window.alert("Please wait a few minutes before calling again.");
+      } else {
+        window.alert(msg);
+      }
+    } finally {
+      setCallingWaiter(false);
+    }
+  };
+
   const submitOrder = async () => {
     if (submitting) return;
     if (!tableSessionId || !sessionSecret) {
@@ -547,16 +649,28 @@ export default function CustomerMenuModern({ slug }: { slug: string }) {
 
     try {
       setSubmitting(true);
-      await createPublicOrder(slug, {
+      const result = await createPublicOrder(slug, {
         tableSessionId,
         sessionSecret,
         deviceId: getDeviceIdForOrders(),
         lines: orderLinesFromCart(cart.lines),
       });
       cart.clear();
-      window.alert(
-        "Order submitted! The restaurant will see it on the kitchen dashboard.",
-      );
+      // Set tracking order ID and token to show status tracker on menu page
+      if (result?.id && result?.orderToken) {
+        console.log("[OrderTracking] Persisting order:", result.id, result.orderToken);
+        setTrackingOrderId(result.id);
+        setTrackingOrderToken(result.orderToken);
+        // Persist order tracking info so it persists when navigating back
+        persistOrderTracking(slug, result.id, result.orderToken);
+        // Verify it was saved
+        const verify = loadOrderTracking(slug);
+        console.log("[OrderTracking] Verification after save:", verify);
+        // Optionally show a success message
+        // window.alert("Order submitted successfully! Track your order status above.");
+      } else {
+        window.alert("Order submitted! The restaurant will see it on the kitchen dashboard.");
+      }
     } catch (e: any) {
       const msg = e?.message ?? "Failed to submit order";
       if (msg.includes("expired") || msg.includes("Invalid session")) {
@@ -650,9 +764,60 @@ export default function CustomerMenuModern({ slug }: { slug: string }) {
                 ) : null}
 
                 <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {/* Order Status Button - Shows live status and navigates to order page */}
+                  {mounted && trackingOrderId && trackingOrderToken && (
+                    <OrderStatusButton
+                      slug={slug}
+                      orderId={trackingOrderId}
+                      orderToken={trackingOrderToken}
+                      tableSessionId={tableSessionId}
+                    />
+                  )}
+                  
                   <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
                     Table: {table || "—"}
                   </span>
+
+                  {tableSessionId && sessionSecret ? (
+                    acceptedWaiterName ? (
+                      <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5">
+                        {acceptedWaiterPhotoUrl ? (
+                          <img
+                            src={acceptedWaiterPhotoUrl}
+                            alt={acceptedWaiterName}
+                            className="h-7 w-7 rounded-full object-cover ring-2 ring-emerald-200"
+                          />
+                        ) : (
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">
+                            {acceptedWaiterName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="text-xs font-semibold text-emerald-800">
+                          {acceptedWaiterName} is on the way
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onCallWaiter}
+                        disabled={callingWaiter || !canCallWaiter}
+                        className={clsx(
+                          "rounded-full px-3 py-1.5 text-xs font-semibold transition",
+                          canCallWaiter && !callingWaiter
+                            ? "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                            : "border border-zinc-200 bg-zinc-100 text-zinc-500 cursor-not-allowed",
+                        )}
+                      >
+                        {callingWaiter
+                          ? "Calling…"
+                          : waiterJustNotified
+                            ? "Waiter notified"
+                            : canCallWaiter
+                              ? "Call waiter"
+                              : `Call again in ${callWaiterCooldownRemaining}s`}
+                      </button>
+                    )
+                  ) : null}
 
                   {quickDish && quickAllergens.length ? (
                     <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-900">

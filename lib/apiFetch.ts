@@ -16,9 +16,20 @@ export async function apiFetch<T>(
   }
 
   const headers: any = {
-    "Content-Type": "application/json",
     ...(opts?.headers || {}),
   };
+  
+  // Only set Content-Type for non-FormData requests
+  // FormData requests need the browser to set Content-Type with boundary automatically
+  if (!(opts?.body instanceof FormData)) {
+    if (!headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
+  } else {
+    // Remove Content-Type if it was set, let browser set it with boundary
+    delete headers["Content-Type"];
+  }
+  
   if (opts?.token) headers["Authorization"] = `Bearer ${opts.token}`;
 
   try {

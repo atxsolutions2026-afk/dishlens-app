@@ -171,7 +171,15 @@ export async function updateOrderStatus(
   orderId: string,
   status: string,
 ) {
-  return staffUpdateOrder(restaurantId, orderId, { status });
+  const token = getToken();
+  return apiFetch<any>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/orders/${encodeURIComponent(orderId)}/status`,
+    {
+      method: "PATCH",
+      token,
+      body: JSON.stringify({ status }),
+    },
+  );
 }
 
 /* =========================================================
@@ -368,4 +376,226 @@ export async function restaurantRatings(restaurantId: string) {
  */
 export async function restaurantRatingsSummary(restaurantId: string) {
   return restaurantRatings(restaurantId);
+}
+
+/* =========================================================
+   WAITERS MANAGEMENT (Admin)
+========================================================= */
+
+export interface WaiterProfile {
+  id: string;
+  restaurantId: string;
+  userId: string;
+  name: string;
+  photoUrl?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    roles: string[];
+  };
+}
+
+export interface CreateWaiterDto {
+  name: string;
+  email?: string;
+  password?: string;
+  photoUrl?: string;
+  phone?: string;
+  notes?: string;
+  userId?: string;
+}
+
+export interface UpdateWaiterDto {
+  name?: string;
+  photoUrl?: string;
+  phone?: string;
+  notes?: string;
+  active?: boolean;
+}
+
+/**
+ * List waiters for a restaurant.
+ */
+export async function listWaiters(restaurantId: string, includeInactive?: boolean): Promise<WaiterProfile[]> {
+  const token = getToken();
+  const qs = includeInactive ? '?includeInactive=true' : '';
+  return apiFetch<WaiterProfile[]>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/waiters${qs}`,
+    { method: "GET", token },
+  );
+}
+
+/**
+ * Get waiter by ID.
+ */
+export async function getWaiter(restaurantId: string, waiterId: string): Promise<WaiterProfile> {
+  const token = getToken();
+  return apiFetch<WaiterProfile>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/waiters/${encodeURIComponent(waiterId)}`,
+    { method: "GET", token },
+  );
+}
+
+/**
+ * Create waiter.
+ */
+export async function createWaiter(restaurantId: string, dto: CreateWaiterDto): Promise<WaiterProfile> {
+  const token = getToken();
+  return apiFetch<WaiterProfile>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/waiters`,
+    {
+      method: "POST",
+      token,
+      body: JSON.stringify(dto),
+    },
+  );
+}
+
+/**
+ * Update waiter.
+ */
+export async function updateWaiter(
+  restaurantId: string,
+  waiterId: string,
+  dto: UpdateWaiterDto,
+): Promise<WaiterProfile> {
+  const token = getToken();
+  return apiFetch<WaiterProfile>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/waiters/${encodeURIComponent(waiterId)}`,
+    {
+      method: "PATCH",
+      token,
+      body: JSON.stringify(dto),
+    },
+  );
+}
+
+/**
+ * Deactivate waiter.
+ */
+export async function deactivateWaiter(restaurantId: string, waiterId: string): Promise<WaiterProfile> {
+  const token = getToken();
+  return apiFetch<WaiterProfile>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/waiters/${encodeURIComponent(waiterId)}/deactivate`,
+    { method: "POST", token },
+  );
+}
+
+/* =========================================================
+   TABLES MANAGEMENT (Admin)
+========================================================= */
+
+export interface RestaurantTable {
+  id: string;
+  restaurantId: string;
+  tableNumber: string;
+  displayName?: string | null;
+  seats?: number | null;
+  x?: number | null;
+  y?: number | null;
+  width?: number | null;
+  height?: number | null;
+  rotation?: number | null;
+  zone?: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTableDto {
+  tableNumber: string;
+  displayName?: string;
+  seats?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+  zone?: string;
+}
+
+export interface UpdateTableDto {
+  displayName?: string;
+  seats?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+  zone?: string;
+  active?: boolean;
+}
+
+/**
+ * List tables for a restaurant.
+ */
+export async function listTables(restaurantId: string, includeInactive?: boolean): Promise<RestaurantTable[]> {
+  const token = getToken();
+  const qs = includeInactive ? '?includeInactive=true' : '';
+  return apiFetch<RestaurantTable[]>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/tables${qs}`,
+    { method: "GET", token },
+  );
+}
+
+/**
+ * Get table by ID.
+ */
+export async function getTable(restaurantId: string, tableId: string): Promise<RestaurantTable> {
+  const token = getToken();
+  return apiFetch<RestaurantTable>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/tables/${encodeURIComponent(tableId)}`,
+    { method: "GET", token },
+  );
+}
+
+/**
+ * Create table.
+ */
+export async function createTable(restaurantId: string, dto: CreateTableDto): Promise<RestaurantTable> {
+  const token = getToken();
+  return apiFetch<RestaurantTable>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/tables`,
+    {
+      method: "POST",
+      token,
+      body: JSON.stringify(dto),
+    },
+  );
+}
+
+/**
+ * Update table.
+ */
+export async function updateTable(
+  restaurantId: string,
+  tableId: string,
+  dto: UpdateTableDto,
+): Promise<RestaurantTable> {
+  const token = getToken();
+  return apiFetch<RestaurantTable>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/tables/${encodeURIComponent(tableId)}`,
+    {
+      method: "PATCH",
+      token,
+      body: JSON.stringify(dto),
+    },
+  );
+}
+
+/**
+ * Deactivate table.
+ */
+export async function deactivateTable(restaurantId: string, tableId: string): Promise<RestaurantTable> {
+  const token = getToken();
+  return apiFetch<RestaurantTable>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/tables/${encodeURIComponent(tableId)}/deactivate`,
+    { method: "POST", token },
+  );
 }
