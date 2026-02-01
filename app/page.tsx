@@ -8,30 +8,50 @@ export default function Home() {
       <div className="mx-auto max-w-2xl px-4 py-10">
         <h1 className="text-3xl font-black tracking-tight">DishLens</h1>
         <p className="mt-2 text-sm text-zinc-600">
-          Two modules:
-          <span className="font-semibold"> Customer QR Menu</span> (no login) and
-          <span className="font-semibold"> Restaurant Dashboard</span> (login required).
+          Customer QR Menu (no login), Restaurant Dashboard, Waiter, Kitchen, and Platform admin — use the links below.
         </p>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <Link
-            href={`/m/${encodeURIComponent(slug)}`}
-            className="rounded-2xl border px-4 py-3 font-semibold hover:bg-zinc-50"
-          >
-            Open Customer Menu
-            <div className="mt-1 text-xs font-normal text-zinc-500 break-all">/m/{slug}</div>
-          </Link>
+        <section className="mt-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Customer (no login)</h2>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <Link
+              href={`/m/${encodeURIComponent(slug)}`}
+              className="rounded-2xl border px-4 py-3 font-semibold hover:bg-zinc-50"
+            >
+              Open Customer Menu
+              <div className="mt-1 text-xs font-normal text-zinc-500 break-all">/m/{slug}</div>
+            </Link>
+          </div>
+        </section>
 
-          <Link
-            href="/r/login"
-            className="rounded-2xl border px-4 py-3 font-semibold hover:bg-zinc-50"
-          >
-            Open Restaurant Dashboard
-            <div className="mt-1 text-xs font-normal text-zinc-500">/r/login</div>
-          </Link>
-        </div>
+        <section className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Login</h2>
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <Link
+              href="/platform/login"
+              className="rounded-2xl border px-4 py-3 font-semibold hover:bg-zinc-50"
+            >
+              Platform Login
+              <div className="mt-1 text-xs font-normal text-zinc-500">/platform/login</div>
+            </Link>
+            <Link
+              href="/r/login"
+              className="rounded-2xl border px-4 py-3 font-semibold hover:bg-zinc-50"
+            >
+              Restaurant Login
+              <div className="mt-1 text-xs font-normal text-zinc-500">Admin &amp; kitchen /r/login</div>
+            </Link>
+            <Link
+              href="/r/login"
+              className="rounded-2xl border px-4 py-3 font-semibold hover:bg-zinc-50"
+            >
+              Waiter Login
+              <div className="mt-1 text-xs font-normal text-zinc-500">Same page, waiter role → /r/waiter</div>
+            </Link>
+          </div>
+        </section>
 
-        <div className="mt-6 rounded-2xl border bg-zinc-50 p-4 text-sm text-zinc-700">
+        <div className="mt-8 rounded-2xl border bg-zinc-50 p-4 text-sm text-zinc-700">
           <div className="font-bold">Setup</div>
           <ol className="mt-2 list-decimal pl-5 space-y-1">
             <li>
