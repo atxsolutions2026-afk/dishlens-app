@@ -46,13 +46,24 @@ export async function apiFetch<T>(
     }
     return data as T;
   } catch (error: any) {
-    // Improve CORS error messages
-    if (error?.message?.includes("Failed to fetch") || error?.message?.includes("CORS")) {
+    // Improve CORS / network error messages (Safari often shows "Load failed")
+    const isNetworkError =
+      error?.message?.includes("Failed to fetch") ||
+      error?.message?.includes("Load failed") ||
+      error?.message?.includes("CORS") ||
+      error?.name === "TypeError";
+    if (isNetworkError) {
+      const host = (() => {
+        try {
+          return new URL(url).origin;
+        } catch {
+          return url.split("/").slice(0, 3).join("/");
+        }
+      })();
       throw new Error(
-        `Failed to fetch ${url}. ` +
-        `Possible reasons: CORS not configured, backend not running, or invalid URL. ` +
-        `Check that: 1) Backend is running on ${url.split("/")[0]}//${url.split("/")[2]}, ` +
-        `2) CORS is enabled in backend, 3) NEXT_PUBLIC_API_BASE_URL is set correctly.`
+        `Request failed (${host}). ` +
+          `On mobile or Vercel: set NEXT_PUBLIC_API_BASE_URL to a public HTTPS API URL and ensure the API is reachable from the internet. ` +
+          `Also check CORS allows your app origin.`
       );
     }
     throw error;

@@ -65,6 +65,12 @@ export default function Home() {
               Set <code className="px-1 py-0.5 bg-white border rounded">NEXT_PUBLIC_RESTAURANT_SLUG</code> for the demo link above
             </li>
           </ol>
+          <p className="mt-3 font-semibold text-zinc-800">Deployed on Vercel (mobile &quot;load failed&quot;?)</p>
+          <p className="mt-1 text-zinc-600">
+            In Vercel project → Settings → Environment Variables, set{" "}
+            <code className="rounded bg-white px-1 border">NEXT_PUBLIC_API_BASE_URL</code> to a{" "}
+            <strong>publicly reachable HTTPS</strong> API URL (not localhost). Redeploy so the app on phones and other devices can reach your API.
+          </p>
         </div>
       </div>
     </div>

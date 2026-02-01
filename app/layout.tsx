@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import CookieBanner from "@/components/CookieBanner";
+import ApiConnectivityBanner from "@/components/ApiConnectivityBanner";
 
 export const metadata: Metadata = {
   title: "DishLens",
@@ -42,6 +43,7 @@ export default function RootLayout({
         </main>
 
         <CookieBanner />
+        <ApiConnectivityBanner />
       </body>
     </html>
   );
