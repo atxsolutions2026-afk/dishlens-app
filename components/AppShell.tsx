@@ -8,7 +8,7 @@ import { clearToken, getUser } from "@/lib/auth";
 import LegalFooter from "@/components/LegalFooter";
 
 // NOTE:
-// This shell is now **Restaurant Module only** (dashboard / uploads / QR).
+// This shell is now **Restaurant Module only** (dashboard / menu / QR).
 // Customer QR menu is a separate module under /m/* and does NOT use AppShell.
 
 const tabs = [
@@ -18,7 +18,6 @@ const tabs = [
   { href: "/r/waiter", label: "Waiter" },
   { href: "/r/waiters", label: "Waiters" },
   { href: "/r/tables", label: "Tables" },
-  { href: "/r/uploads", label: "Uploads" },
   { href: "/r/branding", label: "Branding" },
   { href: "/r/ratings", label: "Ratings" },
   { href: "/r/qr", label: "QR Codes" }

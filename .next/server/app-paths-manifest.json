@@ -1,5 +1,8 @@
 {
-  "/page": "app/page.js",
-  "/platform/login/page": "app/platform/login/page.js",
-  "/platform/dashboard/page": "app/platform/dashboard/page.js"
+  "/r/dashboard/page": "app/r/dashboard/page.js",
+  "/r/orders/page": "app/r/orders/page.js",
+  "/r/tables/page": "app/r/tables/page.js",
+  "/r/qr/page": "app/r/qr/page.js",
+  "/m/[slug]/page": "app/m/[slug]/page.js",
+  "/r/menu/page": "app/r/menu/page.js"
 }

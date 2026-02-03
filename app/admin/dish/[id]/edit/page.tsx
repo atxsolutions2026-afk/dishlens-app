@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function LegacyUploadRedirect() {
-  redirect("/r/uploads");
+export default function LegacyEditDishRedirect() {
+  redirect("/r/menu");
 }

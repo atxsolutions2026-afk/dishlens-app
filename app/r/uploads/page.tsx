@@ -1,10 +1,9 @@
-import AppShell from "@/components/AppShell";
-import EditDishApi from "@/components/admin/EditDishApi";
+import { redirect } from "next/navigation";
 
-export default function UploadsPage() {
-  return (
-    <AppShell activeHref="/r/uploads">
-      <EditDishApi />
-    </AppShell>
-  );
+/**
+ * Uploads functionality has been merged into Menu.
+ * Redirect legacy /r/uploads to /r/menu.
+ */
+export default function UploadsRedirect() {
+  redirect("/r/menu");
 }

@@ -89,13 +89,12 @@ Responsive web app + PWA for restaurant menus, table ordering, waiter workflows,
 | Route | Purpose |
 |-------|---------|
 | `/r/dashboard` | Restaurant home |
-| `/r/menu` | Menu categories & items (CRUD) |
+| `/r/menu` | Menu categories, items (CRUD), image/video uploads |
 | `/r/orders` | Orders list, status, claim |
 | `/r/tables` | Table layout, create/edit tables |
 | `/r/qr` | Generate QR codes for table ordering |
 | `/r/branding` | Logo, hero, theme |
 | `/r/ratings` | Menu item ratings |
-| `/r/uploads` | Media uploads |
 | `/r/waiters` | Waiter accounts |
 | `/r/waiter` | Waiter dashboard (tables, calls, ready orders) |
 | `/r/waiter/order` | Waiter POS — create order for a table |

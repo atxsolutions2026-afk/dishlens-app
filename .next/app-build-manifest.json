@@ -1,9 +1,14 @@
 {
   "pages": {
-    "/page": [
+    "/r/menu/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/page.js"
+      "static/chunks/app/r/menu/page.js"
+    ],
+    "/r/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/layout.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
@@ -11,15 +16,40 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/platform/login/page": [
+    "/r/dashboard/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/platform/login/page.js"
+      "static/chunks/app/r/dashboard/page.js"
     ],
-    "/platform/dashboard/page": [
+    "/r/orders/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/platform/dashboard/page.js"
+      "static/chunks/app/r/orders/page.js"
+    ],
+    "/r/tables/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/tables/page.js"
+    ],
+    "/r/branding/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/branding/page.js"
+    ],
+    "/r/qr/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/r/qr/page.js"
+    ],
+    "/m/[slug]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/m/[slug]/page.js"
+    ],
+    "/m/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/m/layout.js"
     ]
   }
 }

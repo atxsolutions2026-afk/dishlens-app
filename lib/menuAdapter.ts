@@ -13,6 +13,10 @@ export type UiDish = {
   videoUrl?: string | null;
   avgRating?: number | null;
   ratingCount?: number | null;
+  /** Customers can order when true; hidden from customer menu when false */
+  isAvailable?: boolean;
+  /** On menu when true; discontinued (soft-deleted) when false */
+  isActive?: boolean;
 };
 
 export type UiCategory = {
@@ -49,6 +53,8 @@ export function normalizePublicMenu(payload: any): { restaurant: any; categories
         videoUrl: it.videoUrl ?? null,
         avgRating: typeof it.avgRating === "number" ? it.avgRating : null,
         ratingCount: typeof it.ratingCount === "number" ? it.ratingCount : null,
+        isAvailable: typeof it.isAvailable === "boolean" ? it.isAvailable : true,
+        isActive: typeof it.isActive === "boolean" ? it.isActive : true,
       })),
     })),
   };

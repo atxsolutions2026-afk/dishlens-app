@@ -160,9 +160,9 @@ export default function AdminRatingsApi() {
         <div className="flex gap-2">
           <Button
             variant="secondary"
-            onClick={() => (window.location.href = "/r/uploads")}
+            onClick={() => (window.location.href = "/r/menu")}
           >
-            Upload Media
+            Menu & media
           </Button>
         </div>
       </div>

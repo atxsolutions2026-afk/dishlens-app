@@ -59,6 +59,15 @@ export default function AdminMenuManager() {
   const [formIsVeg, setFormIsVeg] = useState<boolean>(false);
   const [busy, setBusy] = useState<boolean>(false);
 
+  // Media upload (image/video for selected item)
+  const [mediaKind, setMediaKind] = useState<"IMAGE" | "VIDEO">("IMAGE");
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string>("");
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const [mediaMsg, setMediaMsg] = useState<string | null>(null);
+  const [mediaErr, setMediaErr] = useState<string | null>(null);
+  const [mediaDragOver, setMediaDragOver] = useState(false);
+
   const selectedItem = useMemo(
     () => items.find((i) => i.id === selectedItemId) ?? null,
     [items, selectedItemId],
@@ -155,6 +164,14 @@ export default function AdminMenuManager() {
     setEditCategoryName(selectedCategory.name || "");
     setEditCategorySort(String((selectedCategory as any).sortOrder ?? 0));
   }, [selectedCategory]);
+
+  // Reset media state when switching items
+  useEffect(() => {
+    setMediaFile(null);
+    setMediaPreview("");
+    setMediaMsg(null);
+    setMediaErr(null);
+  }, [selectedItemId]);
 
   useEffect(() => {
     // Sync form when selecting an item
@@ -325,24 +342,101 @@ export default function AdminMenuManager() {
     }
   }
 
-  async function onDiscontinueItem(itemId: string) {
-    if (!restaurantId) return;
-    if (
-      !window.confirm(
-        "Discontinue this item? It will be hidden from customers.",
-      )
-    )
-      return;
+  /** Build payload from current form state (for partial updates) */
+  function buildItemPayload(overrides?: { isAvailable?: boolean; isActive?: boolean }) {
+    const categoryId = (formCategoryId || selectedCategoryId || "").trim();
+    const allergens = formAllergens.split(",").map((s) => s.trim()).filter(Boolean);
+    return {
+      categoryId,
+      name: formName.trim(),
+      description: formDescription.trim() ? formDescription.trim() : undefined,
+      priceCents: centsFromDollars(formPrice),
+      currency: "USD",
+      isVeg: formIsVeg,
+      spiceLevel: "NONE",
+      allergens,
+      allergenNotes: formAllergenNotes.trim() ? formAllergenNotes.trim() : undefined,
+      isAvailable: overrides?.isAvailable ?? formIsAvailable,
+      isActive: overrides?.isActive ?? formIsActive,
+    };
+  }
+
+  async function onToggleAvailable(checked: boolean) {
+    if (!restaurantId || !selectedItemId) return;
+    setFormIsAvailable(checked);
     setBusy(true);
     try {
-      await endpoints.discontinueMenuItem(restaurantId, itemId);
-      setSelectedItemId("");
+      await endpoints.updateMenuItem(restaurantId, selectedItemId, buildItemPayload({ isAvailable: checked }));
       await loadMenu();
     } catch (e: any) {
-      window.alert(e?.message ?? "Failed to discontinue item");
+      setFormIsAvailable(!checked);
+      window.alert(e?.message ?? "Failed to update");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function onToggleActive(checked: boolean) {
+    if (!restaurantId || !selectedItemId) return;
+    if (!checked && !window.confirm("Remove this item from the menu? It will no longer appear for customers.")) return;
+    setFormIsActive(checked);
+    setBusy(true);
+    try {
+      await endpoints.updateMenuItem(restaurantId, selectedItemId, buildItemPayload({ isActive: checked }));
+      await loadMenu();
+    } catch (e: any) {
+      setFormIsActive(!checked);
+      window.alert(e?.message ?? "Failed to update");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doMediaUpload() {
+    if (!restaurantId || !selectedItemId || !mediaFile) return;
+    setMediaBusy(true);
+    setMediaMsg(null);
+    setMediaErr(null);
+    try {
+      if (mediaKind === "IMAGE") {
+        await endpoints.uploadMenuItemImage(restaurantId, selectedItemId, mediaFile);
+      } else {
+        await endpoints.uploadMenuItemVideo(restaurantId, selectedItemId, mediaFile);
+      }
+      setMediaMsg("Uploaded successfully.");
+      setMediaFile(null);
+      setMediaPreview("");
+      await loadMenu();
+    } catch (e: any) {
+      setMediaErr(e?.message ?? "Upload failed");
+    } finally {
+      setMediaBusy(false);
+    }
+  }
+
+  function onMediaFilePick(f: File | null) {
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaFile(f ?? null);
+    setMediaPreview(f ? URL.createObjectURL(f) : "");
+  }
+
+  function handleMediaDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setMediaDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (!f) return;
+    const isImage = mediaKind === "IMAGE" && f.type.startsWith("image/");
+    const isVideo = mediaKind === "VIDEO" && f.type.startsWith("video/");
+    if (isImage || isVideo) onMediaFilePick(f);
+  }
+
+  function handleMediaDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    setMediaDragOver(true);
+  }
+
+  function handleMediaDragLeave() {
+    setMediaDragOver(false);
   }
 
   return (
@@ -351,7 +445,7 @@ export default function AdminMenuManager() {
         <div>
           <div className="text-3xl font-black tracking-tight">Menu Manager</div>
           <div className="mt-1 text-sm text-zinc-600">
-            Create categories, add items, and toggle availability.
+            Create categories, add items, upload photos & videos, and toggle availability.
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -528,8 +622,7 @@ export default function AdminMenuManager() {
             <div>
               <div className="text-sm font-bold">Items</div>
               <div className="text-xs text-zinc-500">
-                Toggle <b>Temporarily unavailable</b> (isAvailable) or{" "}
-                <b>Discontinued</b> (isActive).
+                <b>Customers can order</b> = available; <b>Listed on menu</b> = shown. Uncheck to hide or remove.
               </div>
             </div>
             <div className="flex gap-2">
@@ -563,10 +656,14 @@ export default function AdminMenuManager() {
                         key={it.id}
                         onClick={() => setSelectedItemId(it.id)}
                         className={clsx(
-                          "w-full rounded-2xl border px-3 py-2 text-left",
+                          "w-full rounded-2xl border px-3 py-2 text-left transition",
                           selectedItemId === it.id
-                            ? "border-brand bg-brand/5"
-                            : "border-zinc-200 bg-white hover:border-zinc-300",
+                            ? "border-brand bg-brand/5 ring-1 ring-brand/20"
+                            : it.isActive === false
+                              ? "border-red-200 bg-red-50/70 hover:border-red-300"
+                              : it.isAvailable === false
+                                ? "border-amber-200 bg-amber-50/70 hover:border-amber-300"
+                                : "border-zinc-200 bg-white hover:border-zinc-300",
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -579,13 +676,19 @@ export default function AdminMenuManager() {
                               {it.categoryName || "—"}
                             </div>
                           </div>
-                          <div className="text-right text-[11px] font-semibold">
+                          <div className="flex shrink-0 items-center gap-1.5">
                             {it.isActive === false ? (
-                              <div className="text-red-700">discontinued</div>
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                                Removed from menu
+                              </span>
                             ) : it.isAvailable === false ? (
-                              <div className="text-amber-700">unavailable</div>
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                Temporarily unavailable
+                              </span>
                             ) : (
-                              <div className="text-emerald-700">live</div>
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                                Available
+                              </span>
                             )}
                           </div>
                         </div>
@@ -729,57 +832,219 @@ export default function AdminMenuManager() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="flex items-center gap-2 rounded-2xl border px-3 py-2">
+                  <label
+                    className={clsx(
+                      "flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition",
+                      formIsAvailable ? "border-emerald-200 bg-emerald-50/50" : "border-amber-200 bg-amber-50/50",
+                    )}
+                  >
                     <input
                       type="checkbox"
                       checked={formIsAvailable}
-                      onChange={(e) => setFormIsAvailable(e.target.checked)}
+                      onChange={(e) =>
+                        selectedItemId ? onToggleAvailable(e.target.checked) : setFormIsAvailable(e.target.checked)
+                      }
+                      disabled={busy}
+                      className="h-4 w-4"
                     />
                     <span className="text-sm font-semibold text-zinc-700">
                       Available for ordering
                     </span>
                   </label>
 
-                  <label className="flex items-center gap-2 rounded-2xl border px-3 py-2">
+                  <label
+                    className={clsx(
+                      "flex items-center gap-2 rounded-2xl border px-3 py-2.5 transition",
+                      formIsActive ? "border-emerald-200 bg-emerald-50/50" : "border-red-200 bg-red-50/50",
+                    )}
+                  >
                     <input
                       type="checkbox"
                       checked={formIsActive}
-                      onChange={(e) => setFormIsActive(e.target.checked)}
+                      onChange={(e) =>
+                        selectedItemId ? onToggleActive(e.target.checked) : setFormIsActive(e.target.checked)
+                      }
+                      disabled={busy}
+                      className="h-4 w-4"
                     />
                     <span className="text-sm font-semibold text-zinc-700">
-                      Active (not discontinued)
+                      Listed on menu
                     </span>
                   </label>
                 </div>
+                <p className="text-xs text-zinc-500">
+                  Changes save automatically. Uncheck Active to discontinue.
+                </p>
 
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={onSaveItem} disabled={busy}>
-                    {busy ? "Saving..." : "Save"}
+                    {busy ? "Saving..." : "Save details"}
                   </Button>
-                  {selectedItemId ? (
-                    <Button
-                      variant="danger"
-                      onClick={() => onDiscontinueItem(selectedItemId)}
-                      disabled={busy}
-                    >
-                      Discontinue
-                    </Button>
-                  ) : null}
                 </div>
 
+                {selectedItemId ? (
+                  <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+                    <div className="text-sm font-bold">Media</div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      Photo and video shown to customers on the menu.
+                    </div>
+
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-3">
+                        <div className="text-xs font-semibold text-zinc-600">Photo</div>
+                        {(selectedItem as any)?.imageUrl ? (
+                          <div className="mt-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={(selectedItem as any).imageUrl}
+                              alt=""
+                              className="h-24 w-full rounded-lg object-cover"
+                            />
+                            <span className="mt-1 block text-[10px] text-emerald-600">Uploaded</span>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-[11px] text-zinc-500">No photo yet</p>
+                        )}
+                      </div>
+                      <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-3">
+                        <div className="text-xs font-semibold text-zinc-600">Video</div>
+                        {(selectedItem as any)?.videoUrl ? (
+                          <div className="mt-2">
+                            <span className="text-[11px] text-emerald-600">Video uploaded</span>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-[11px] text-zinc-500">No video yet</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMediaKind("IMAGE");
+                            onMediaFilePick(null);
+                          }}
+                          className={clsx(
+                            "rounded-xl border px-3 py-2 text-xs font-semibold transition",
+                            mediaKind === "IMAGE"
+                              ? "border-brand bg-brand text-white"
+                              : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300",
+                          )}
+                        >
+                          Add photo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMediaKind("VIDEO");
+                            onMediaFilePick(null);
+                          }}
+                          className={clsx(
+                            "rounded-xl border px-3 py-2 text-xs font-semibold transition",
+                            mediaKind === "VIDEO"
+                              ? "border-brand bg-brand text-white"
+                              : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300",
+                          )}
+                        >
+                          Add video
+                        </button>
+                      </div>
+
+                      <div
+                        onDrop={handleMediaDrop}
+                        onDragOver={handleMediaDragOver}
+                        onDragLeave={handleMediaDragLeave}
+                        className={clsx(
+                          "mt-3 rounded-xl border-2 border-dashed p-6 text-center transition",
+                          mediaDragOver
+                            ? "border-brand bg-brand/5"
+                            : "border-zinc-200 bg-zinc-50/50 hover:border-zinc-300",
+                        )}
+                      >
+                        {!mediaPreview ? (
+                          <>
+                            <p className="text-sm font-medium text-zinc-700">
+                              Drag & drop or click to choose {mediaKind.toLowerCase()}
+                            </p>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              {mediaKind === "IMAGE" ? "JPG, PNG, WebP (max 15MB)" : "MP4, WebM"}
+                            </p>
+                            <Button
+                              variant="secondary"
+                              className="mt-3 py-2 px-4 text-xs"
+                              onClick={() => document.getElementById("mediaFileInput")?.click()}
+                              disabled={mediaBusy}
+                            >
+                              Choose file
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="space-y-3">
+                            {mediaKind === "IMAGE" ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={mediaPreview}
+                                alt="Preview"
+                                className="mx-auto h-40 max-w-full rounded-lg object-cover"
+                              />
+                            ) : (
+                              <video
+                                src={mediaPreview}
+                                controls
+                                className="mx-auto h-40 max-w-full rounded-lg object-cover"
+                              />
+                            )}
+                            <div className="flex justify-center gap-2">
+                              <Button
+                                variant="secondary"
+                                className="py-2 px-3 text-xs"
+                                onClick={() => document.getElementById("mediaFileInput")?.click()}
+                                disabled={mediaBusy}
+                              >
+                                Change
+                              </Button>
+                              <Button className="py-2 px-4 text-xs" onClick={doMediaUpload} disabled={mediaBusy}>
+                                {mediaBusy ? "Uploading…" : "Upload"}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <input
+                      id="mediaFileInput"
+                      type="file"
+                      accept={mediaKind === "IMAGE" ? "image/*" : "video/*"}
+                      className="hidden"
+                      onChange={(e) => onMediaFilePick(e.target.files?.[0] ?? null)}
+                    />
+
+                    {mediaMsg ? (
+                      <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                        {mediaMsg}
+                      </div>
+                    ) : null}
+                    {mediaErr ? (
+                      <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                        {mediaErr}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <div className="rounded-2xl border bg-zinc-50 p-3 text-[11px] text-zinc-600">
-                  <div className="font-semibold">What this does</div>
+                  <div className="font-semibold">Status</div>
                   <ul className="mt-1 list-disc pl-4">
                     <li>
-                      <b>Available for ordering</b> sets{" "}
-                      <code>isAvailable=true/false</code> (customers won’t see
-                      it if false).
+                      <b>Available</b> — customers can order. Uncheck to hide temporarily.
                     </li>
                     <li>
-                      <b>Discontinue</b> sets <code>isActive=false</code> (soft
-                      delete; visible only with includeInactive=1).
+                      <b>Active</b> — item is live. Uncheck to discontinue (soft delete).
                     </li>
-                    <li>Allergen tags + notes are stored per item.</li>
+                    <li>Both save automatically when toggled.</li>
                   </ul>
                 </div>
               </div>
