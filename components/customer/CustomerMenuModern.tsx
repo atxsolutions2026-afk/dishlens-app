@@ -555,7 +555,7 @@ export default function CustomerMenuModern({ slug }: { slug: string }) {
 
     setActiveTab(name);
 
-    const stickyOffset = 88 + 56; // collapsed hero + sticky tabs
+    const stickyOffset = 56; // sticky category tabs (hero is fixed, content scrolls over it)
     const y = el.getBoundingClientRect().top + window.scrollY - stickyOffset;
     window.scrollTo({ top: y, behavior: "smooth" });
   };
@@ -742,7 +742,7 @@ export default function CustomerMenuModern({ slug }: { slug: string }) {
           onConfirm={confirmCustomize}
         />
 
-        {/* ✅ Use hero + logo from restaurant detail endpoint */}
+        {/* ✅ Fixed hero - content scrolls over it (no flickering) */}
         <RestaurantHeroCollapsible
           restaurantName={restaurantName || "DishLens"}
           logoUrl={restaurantLogoUrl || null}
@@ -753,7 +753,7 @@ export default function CustomerMenuModern({ slug }: { slug: string }) {
           hint="Tap an image for video"
         />
 
-        <Container className="max-w-6xl px-0 sm:px-4">
+        <Container className="relative z-20 max-w-6xl bg-white px-0 sm:px-4">
           <div className="px-4 pt-4 pb-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -895,8 +895,7 @@ export default function CustomerMenuModern({ slug }: { slug: string }) {
 
               <main>
                 <div
-                  className="sticky z-40 bg-white/95 backdrop-blur border-b lg:hidden"
-                  style={{ top: 88 }}
+                  className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur lg:hidden"
                 >
                   <div className="py-2 flex gap-5 overflow-x-auto whitespace-nowrap no-scrollbar px-1">
                     {filteredByQuery.map((c) => (

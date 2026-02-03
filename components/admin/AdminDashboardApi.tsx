@@ -8,6 +8,7 @@ import {
   listRestaurants,
   adminMenu,
   staffListOrders,
+  getTablesStatus,
   listTables,
   listWaiters,
 } from "@/lib/api/admin";
@@ -24,6 +25,11 @@ type DashboardStats = {
   ordersToday: number;
   pendingOrders: number;
   tables: number;
+  totalCapacity: number;
+  occupiedTables: number;
+  availableTables: number;
+  occupiedSeats: number;
+  availableSeats: number;
   waiters: number;
 };
 
@@ -71,6 +77,11 @@ export default function AdminDashboardApi() {
     ordersToday: 0,
     pendingOrders: 0,
     tables: 0,
+    totalCapacity: 0,
+    occupiedTables: 0,
+    availableTables: 0,
+    occupiedSeats: 0,
+    availableSeats: 0,
     waiters: 0,
   });
 
@@ -93,10 +104,10 @@ export default function AdminDashboardApi() {
           throw new Error("No restaurants found. Create a restaurant first.");
         }
 
-        const [menuRes, ordersRes, tablesRes, waitersRes] = await Promise.allSettled([
+        const [menuRes, ordersRes, tablesStatusRes, waitersRes] = await Promise.allSettled([
           adminMenu(id),
           staffListOrders(id),
-          listTables(id),
+          getTablesStatus(id),
           listWaiters(id, false),
         ]);
 
@@ -104,7 +115,8 @@ export default function AdminDashboardApi() {
 
         const menu = menuRes.status === "fulfilled" ? menuRes.value : null;
         const orders = ordersRes.status === "fulfilled" ? ordersRes.value : [];
-        const tables = tablesRes.status === "fulfilled" ? tablesRes.value : [];
+        const tablesStatus =
+          tablesStatusRes.status === "fulfilled" ? tablesStatusRes.value : null;
         const waiters = waitersRes.status === "fulfilled" ? waitersRes.value : [];
 
         const cats = menu?.categories ?? menu?.menu?.categories ?? menu?.data?.categories ?? [];
@@ -124,7 +136,7 @@ export default function AdminDashboardApi() {
           (o: any) => o?.status === "NEW" || o?.status === "IN_PROGRESS"
         ).length;
 
-        const tablesArr = Array.isArray(tables) ? tables : [];
+        const tablesArr = tablesStatus?.tables ?? [];
         const waitersArr = Array.isArray(waiters) ? waiters : [];
 
         const menuStatus =
@@ -140,6 +152,11 @@ export default function AdminDashboardApi() {
           ordersToday,
           pendingOrders,
           tables: tablesArr.length,
+          totalCapacity: tablesStatus?.totalCapacity ?? 0,
+          occupiedTables: tablesStatus?.occupiedTablesCount ?? 0,
+          availableTables: tablesStatus?.availableTablesCount ?? 0,
+          occupiedSeats: tablesStatus?.occupiedSeats ?? 0,
+          availableSeats: tablesStatus?.availableSeats ?? 0,
           waiters: waitersArr.length,
         });
       } catch (e: unknown) {
@@ -255,6 +272,41 @@ export default function AdminDashboardApi() {
         <StatCard title="Waiters" value={stats.waiters} href="/r/waiters" tone="neutral" />
       </div>
 
+      {/* Capacity & occupancy */}
+      {(stats.totalCapacity > 0 || stats.tables > 0) && (
+        <Panel className="mb-6 border-l-4 border-l-blue-500 bg-blue-50/30 p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 mb-3">
+            Capacity & occupancy
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl bg-white p-4 border border-zinc-100">
+              <div className="text-xs font-medium text-zinc-500">Total capacity</div>
+              <div className="mt-1 text-xl font-bold text-zinc-900">
+                {stats.totalCapacity} seats
+              </div>
+            </div>
+            <div className="rounded-xl bg-white p-4 border border-zinc-100">
+              <div className="text-xs font-medium text-zinc-500">Available seats</div>
+              <div className="mt-1 text-xl font-bold text-emerald-600">
+                {stats.availableSeats} seats
+              </div>
+            </div>
+            <div className="rounded-xl bg-white p-4 border border-zinc-100">
+              <div className="text-xs font-medium text-zinc-500">Tables occupied</div>
+              <div className="mt-1 text-xl font-bold text-amber-600">
+                {stats.occupiedTables} / {stats.tables}
+              </div>
+            </div>
+            <div className="rounded-xl bg-white p-4 border border-zinc-100">
+              <div className="text-xs font-medium text-zinc-500">Tables available</div>
+              <div className="mt-1 text-xl font-bold text-zinc-900">
+                {stats.availableTables}
+              </div>
+            </div>
+          </div>
+        </Panel>
+      )}
+
       {/* Quick actions */}
       <Panel className="p-6">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
@@ -271,9 +323,9 @@ export default function AdminDashboardApi() {
               Kitchen / orders
             </Button>
           </Link>
-          <Link href="/r/uploads">
+          <Link href="/r/menu">
             <Button className="w-full" variant="secondary">
-              Upload photos & videos
+              Menu & media
             </Button>
           </Link>
           <Link href="/r/qr">

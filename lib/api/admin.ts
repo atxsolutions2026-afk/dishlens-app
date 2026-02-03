@@ -477,6 +477,23 @@ export async function updateWaiter(
 }
 
 /**
+ * Upload waiter photo (image file).
+ */
+export async function uploadWaiterPhoto(
+  restaurantId: string,
+  waiterId: string,
+  file: File,
+): Promise<{ photoUrl: string }> {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append("file", file);
+  return apiFetch<{ photoUrl: string }>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/waiters/${encodeURIComponent(waiterId)}/photo`,
+    { method: "POST", token, body: fd as any },
+  );
+}
+
+/**
  * Deactivate waiter.
  */
 export async function deactivateWaiter(restaurantId: string, waiterId: string): Promise<WaiterProfile> {
@@ -597,5 +614,40 @@ export async function deactivateTable(restaurantId: string, tableId: string): Pr
   return apiFetch<RestaurantTable>(
     `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/tables/${encodeURIComponent(tableId)}/deactivate`,
     { method: "POST", token },
+  );
+}
+
+/**
+ * Permanently delete table.
+ */
+export async function deleteTable(restaurantId: string, tableId: string): Promise<{ ok: boolean }> {
+  const token = getToken();
+  return apiFetch<{ ok: boolean }>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/tables/${encodeURIComponent(tableId)}`,
+    { method: "DELETE", token },
+  );
+}
+
+export interface TableWithStatus extends RestaurantTable {
+  occupied: boolean;
+}
+
+export interface TablesStatusResult {
+  tables: TableWithStatus[];
+  totalCapacity: number;
+  occupiedTablesCount: number;
+  availableTablesCount: number;
+  occupiedSeats: number;
+  availableSeats: number;
+}
+
+/**
+ * Get tables with occupancy status and capacity metrics.
+ */
+export async function getTablesStatus(restaurantId: string): Promise<TablesStatusResult> {
+  const token = getToken();
+  return apiFetch<TablesStatusResult>(
+    `${API_BASE}/restaurants/${encodeURIComponent(restaurantId)}/tables-status`,
+    { method: "GET", token },
   );
 }

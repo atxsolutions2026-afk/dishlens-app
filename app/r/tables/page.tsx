@@ -6,9 +6,11 @@ import AppShell from "@/components/AppShell";
 import { getUser } from "@/lib/auth";
 import {
   listTables,
+  getTablesStatus,
   createTable,
   updateTable,
   deactivateTable,
+  deleteTable,
   type RestaurantTable,
   type CreateTableDto,
   type UpdateTableDto,
@@ -20,7 +22,7 @@ import { clsx } from "clsx";
 export default function TablesPage() {
   const router = useRouter();
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
-  const [tables, setTables] = useState<RestaurantTable[]>([]);
+  const [tables, setTables] = useState<(RestaurantTable & { occupied?: boolean })[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTable, setEditingTable] = useState<RestaurantTable | null>(null);
@@ -57,8 +59,13 @@ export default function TablesPage() {
   async function loadTables(rid: string) {
     setLoading(true);
     try {
-      const data = await listTables(rid, includeInactive);
-      setTables(data);
+      if (includeInactive) {
+        const data = await listTables(rid, true);
+        setTables(data.map((t) => ({ ...t, occupied: false })));
+      } else {
+        const status = await getTablesStatus(rid);
+        setTables(status.tables);
+      }
     } catch (e: any) {
       console.error("Failed to load tables:", e);
       alert(e?.message || "Failed to load tables");
@@ -104,6 +111,17 @@ export default function TablesPage() {
       loadTables(restaurantId);
     } catch (e: any) {
       alert(e?.message || "Failed to deactivate table");
+    }
+  }
+
+  async function handleDelete(tableId: string) {
+    if (!restaurantId) return;
+    if (!confirm("Permanently delete this table? This cannot be undone.")) return;
+    try {
+      await deleteTable(restaurantId, tableId);
+      loadTables(restaurantId);
+    } catch (e: any) {
+      alert(e?.message || "Failed to delete table");
     }
   }
 
@@ -237,16 +255,23 @@ export default function TablesPage() {
                       </h3>
                       <div className="text-xs text-zinc-500">#{table.tableNumber}</div>
                     </div>
-                    <span
-                      className={clsx(
-                        "rounded-full px-2.5 py-1 text-xs font-semibold",
-                        table.active
-                          ? "bg-green-100 text-green-800"
-                          : "bg-zinc-100 text-zinc-600"
+                    <div className="flex gap-1.5 flex-wrap">
+                      <span
+                        className={clsx(
+                          "rounded-full px-2.5 py-1 text-xs font-semibold",
+                          table.active
+                            ? "bg-green-100 text-green-800"
+                            : "bg-zinc-100 text-zinc-600"
+                        )}
+                      >
+                        {table.active ? "Active" : "Inactive"}
+                      </span>
+                      {table.active && table.occupied && (
+                        <span className="rounded-full px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-800">
+                          Occupied
+                        </span>
                       )}
-                    >
-                      {table.active ? "Active" : "Inactive"}
-                    </span>
+                    </div>
                   </div>
                   {table.seats && (
                     <div className="text-xs text-zinc-600 mb-2">🪑 {table.seats} seats</div>
@@ -259,21 +284,27 @@ export default function TablesPage() {
                       📐 Position: ({Math.round(table.x || 0)}, {Math.round(table.y || 0)})
                     </div>
                   )}
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex flex-wrap gap-2 mt-4">
                     <button
                       onClick={() => setEditingTable(table)}
-                      className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:border-zinc-300"
+                      className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:border-zinc-300"
                     >
                       Edit
                     </button>
                     {table.active && (
                       <button
                         onClick={() => handleDeactivate(table.id)}
-                        className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+                        className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100"
                       >
                         Deactivate
                       </button>
                     )}
+                    <button
+                      onClick={() => handleDelete(table.id)}
+                      className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               ))}
@@ -338,15 +369,37 @@ export default function TablesPage() {
                       {Math.round(selectedTable.y || 0)})
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditingTable(selectedTable);
                       }}
-                      className="flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-700 hover:border-zinc-300"
+                      className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-700 hover:border-zinc-300"
                     >
                       Edit
+                    </button>
+                    {selectedTable.active && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeactivate(selectedTable.id);
+                          setSelectedTable(null);
+                        }}
+                        className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                      >
+                        Deactivate
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(selectedTable.id);
+                        setSelectedTable(null);
+                      }}
+                      className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+                    >
+                      Delete
                     </button>
                     <button
                       onClick={(e) => {
